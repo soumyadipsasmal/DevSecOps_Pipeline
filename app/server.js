@@ -1,12 +1,13 @@
 const express = require("express");
+const path = require("path");
 
 const app = express();
 const PORT = 3007;
 
-app.get("/", (req, res) => {
-    res.send("DevSecOps Pipeline Application is Running!");
-});
+// Serve frontend files
+app.use(express.static(path.join(__dirname, "../frontend")));
 
+// Health check
 app.get("/health", (req, res) => {
     res.json({
         status: "UP",
