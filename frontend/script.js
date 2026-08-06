@@ -61,111 +61,51 @@
     },
   };
 
-  const ARTICLES = [
-    {
-      id: "a1",
-      title: "How I Built a Production-Ready DevSecOps Pipeline",
-      description:
-        "Learn how modern DevOps practices can be combined with security automation and cloud infrastructure to ship faster, safer releases.",
-      author: AUTHORS.soumyadip,
-      category: "devops",
-      readMins: 6,
-      date: "Jul 31",
-      image: "https://images.unsplash.com/photo-1518770660439-4636190af475?w=800&q=60",
-      featured: true,
-    },
-    {
-      id: "a2",
-      title: "Kubernetes Autoscaling Beyond the Defaults",
-      description:
-        "HPA and VPA out of the box only get you so far. Here's how we tuned custom metrics to cut pod churn by 40%.",
-      author: AUTHORS.priya,
-      category: "kubernetes",
-      readMins: 8,
-      date: "Jul 30",
-      image: "https://images.unsplash.com/photo-1667372393119-3d4c48d07fc9?w=800&q=60",
-      featured: true,
-    },
-    {
-      id: "a3",
-      title: "The Real Cost of Multi-Region AWS Architecture",
-      description:
-        "A line-by-line breakdown of what cross-region replication actually costs, and when it isn't worth it.",
-      author: AUTHORS.marcus,
-      category: "aws",
-      readMins: 10,
-      date: "Jul 29",
-      image: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800&q=60",
-    },
-    {
-      id: "a4",
-      title: "Container Escape 101: What Docker Doesn't Tell You",
-      description:
-        "A practical walkthrough of common container isolation failures and the hardening steps that actually matter.",
-      author: AUTHORS.lena,
-      category: "cybersecurity",
-      readMins: 7,
-      date: "Jul 29",
-      image: "https://images.unsplash.com/photo-1605745341112-85968b19335b?w=800&q=60",
-    },
-    {
-      id: "a5",
-      title: "Shipping an LLM Feature Without Blowing the Budget",
-      description:
-        "Token costs, caching layers, and the eval harness we built before this ever touched production traffic.",
-      author: AUTHORS.dev,
-      category: "ai",
-      readMins: 9,
-      date: "Jul 28",
-      image: "https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=800&q=60",
-    },
-    {
-      id: "a6",
-      title: "Terraform Modules We Regret Not Writing Sooner",
-      description:
-        "Six months into a Terraform monorepo, these are the abstractions that saved us the most review time.",
-      author: AUTHORS.soumyadip,
-      category: "cloud",
-      readMins: 5,
-      date: "Jul 27",
-      image: "https://images.unsplash.com/photo-1667372393119-6a1c9d9b6b6b?w=800&q=60",
-    },
-    {
-      id: "a7",
-      title: "A Junior Engineer's Guide to Reading Postmortems",
-      description:
-        "Postmortems are some of the densest engineering writing you'll encounter. Here's how to actually learn from them.",
-      author: AUTHORS.priya,
-      category: "programming",
-      readMins: 6,
-      date: "Jul 26",
-      image: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&q=60",
-    },
-    {
-      id: "a8",
-      title: "CSS Container Queries Finally Fixed My Component Library",
-      description:
-        "After years of viewport-based breakpoints, container queries let every component own its own responsiveness.",
-      author: AUTHORS.dev,
-      category: "web-development",
-      readMins: 4,
-      date: "Jul 25",
-      image: "https://images.unsplash.com/photo-1621839673705-6617adf9e890?w=800&q=60",
-    },
-    {
-      id: "a9",
-      title: "Secrets Scanning: What CI Catches and What It Misses",
-      description:
-        "We ran five popular secret scanners against a deliberately messy monorepo. The gaps surprised us.",
-      author: AUTHORS.lena,
-      category: "cybersecurity",
-      readMins: 8,
-      date: "Jul 24",
-      image: "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=800&q=60",
-    },
-  ];
+  let ARTICLES = [];
 
-  const TRENDING = [ARTICLES[3], ARTICLES[1], ARTICLES[4], ARTICLES[0], ARTICLES[8]];
+async function loadArticles() {
+  try {
+    const response = await fetch("/api/articles");
+
+    if (!response.ok) {
+      throw new Error(`API returned ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    ARTICLES = data.articles.map((article, index) => ({
+      id: article.id,
+      title: article.title,
+      description: article.content,
+      author: {
+        id: article.author_id,
+        name: article.author,
+        avatar: "https://i.pravatar.cc/64?img=12",
+        bio: "Software Engineer · DevOps · Cloud",
+        followers: 0,
+      },
+      category: "devops",
+      readMins: Math.max(
+        1,
+        Math.ceil(article.content.trim().split(/\s+/).length / 200)
+      ),
+      date: new Date(article.created_at).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      }),
+      image:
+        article.cover_image ||
+        "https://images.unsplash.com/photo-1518770660439-4636190af475?w=800&q=60",
+      featured: index < 2,
+    }));
+
+    populateFeed();
+  } catch (error) {
+    console.error("Failed to load articles:", error);
+  }
+}
+
+  const TRENDING = [];
 
   const TRENDING_TOPICS = [
     "Platform Engineering",
@@ -471,6 +411,5 @@
   /* Init                                                                */
   /* ------------------------------------------------------------------ */
 
-  document.addEventListener("DOMContentLoaded", populateFeed);
-  if (document.readyState !== "loading") populateFeed();
+  document.addEventListener("DOMContentLoaded", loadArticles);
 })();
