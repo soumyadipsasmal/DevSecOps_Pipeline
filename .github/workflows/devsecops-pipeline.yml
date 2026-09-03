@@ -13,12 +13,14 @@ jobs:
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Run Secret Detection (Trufflehog)
-        uses: trufflesecurity/trufflehog-credential-action@v3.0.0
+        uses: trufflesecurity/trufflehog@main
         with:
-          base: ""
           head: ${{ github.sha }}
+          extra_args: --debug
 
   docker_security_scan:
     name: Docker Image Vulnerability Scan
@@ -43,7 +45,7 @@ jobs:
         with:
           image-ref: 'devsecops-app:${{ github.sha }}'
           format: 'table'
-          exit-code: '0' # Set to 0 temporarily so pipeline doesn't break on initial warnings
+          exit-code: '0'
           ignore-unfixed: true
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
