@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>KaliNova — Read. Write. Share.</title>
+<title>KaliNova</title>
 <meta name="description" content="KaliNova is a publishing platform for developers, DevOps engineers, and technologists to read and share ideas.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="/style.css">
 </head>
 <body>
 
@@ -65,11 +65,12 @@
     </button>
   </div>
 
-  <!-- TOPIC NAV: "For You" is a static view (no category filter); every other
-       chip is rendered by script.js from GET /api/categories. -->
+  <!-- TOPIC NAV: "For You" links back to the homepage; every other chip is
+       rendered by script.js from GET /api/categories and navigates to
+       /category/<slug>. -->
   <nav class="topic-nav" aria-label="Topics">
     <ul id="topic-list">
-      <li><a class="topic-chip is-active" href="/">For You</a></li>
+      <li><a class="topic-chip" href="/">For You</a></li>
     </ul>
   </nav>
 </header>
@@ -88,23 +89,37 @@
     <!-- FEED -->
     <div class="feed">
 
-      <section class="feed-section" aria-labelledby="featured-heading">
-        <h2 class="feed-heading" id="featured-heading">Featured stories</h2>
-        <div class="featured-grid" id="featured-grid"></div>
-      </section>
+      <div class="category-page-header">
+        <a class="category-back-link" href="/">&larr; All stories</a>
+        <h1 class="category-page-title" id="category-page-title">Loading&hellip;</h1>
+      </div>
 
-      <section class="feed-section" aria-labelledby="recommended-heading">
-        <div class="feed-heading-row">
-          <h2 class="feed-heading" id="recommended-heading">Recommended for you</h2>
+      <div id="category-page-body" hidden>
+        <section class="feed-section" aria-labelledby="featured-heading">
+          <h2 class="feed-heading" id="featured-heading">Featured stories</h2>
+          <div class="featured-grid" id="featured-grid"></div>
+        </section>
+
+        <section class="feed-section" aria-labelledby="recommended-heading">
+          <div class="feed-heading-row">
+            <h2 class="feed-heading" id="recommended-heading">Recommended for you</h2>
+          </div>
+          <div class="article-list" id="recommended-list"></div>
+        </section>
+
+        <section class="feed-section" aria-labelledby="latest-heading">
+          <h2 class="feed-heading" id="latest-heading">Latest stories</h2>
+          <div class="article-list" id="latest-list"></div>
+          <button class="btn btn-outline load-more" id="load-more-btn" type="button">Show more stories</button>
+        </section>
+      </div>
+
+      <div id="category-not-found" hidden>
+        <div class="empty-state">
+          <p class="empty-state-title">This category doesn't exist.</p>
+          <p class="empty-state-subtitle"><a href="/">Go back to all stories.</a></p>
         </div>
-        <div class="article-list" id="recommended-list"></div>
-      </section>
-
-      <section class="feed-section" aria-labelledby="latest-heading">
-        <h2 class="feed-heading" id="latest-heading">Latest stories</h2>
-        <div class="article-list" id="latest-list"></div>
-        <button class="btn btn-outline load-more" id="load-more-btn" type="button">Show more stories</button>
-      </section>
+      </div>
 
     </div>
 
@@ -126,7 +141,7 @@
         <ul class="author-list" id="author-list"></ul>
       </section>
 
-      <p class="side-footnote">KaliNova &copy; 2026 · Built for developers, by developers.</p>
+      <p class="side-footnote">KaliNova &copy; 2026 &middot; Built for developers, by developers.</p>
     </aside>
 
   </div>
@@ -273,6 +288,6 @@
   </div>
 </div>
 
-<script src="script.js"></script>
+<script src="/script.js"></script>
 </body>
 </html>

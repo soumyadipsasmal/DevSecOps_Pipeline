@@ -16,6 +16,12 @@
   --accent-tint:  #E8F1EC;
   --danger:       #B3432B;
 
+  /* Body background (dark blue) and the light text tones needed only for
+     content that has no card/header background of its own behind it. */
+  --body-bg-dark:        #0B1F3A;
+  --body-text-light:       #F4F6F9;
+  --body-text-light-muted: #AEBBD0;
+
   /* Type */
   --font-display: "Fraunces", Georgia, serif;
   --font-body:    "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -37,7 +43,7 @@ html { scroll-behavior: smooth; }
 
 body {
   margin: 0;
-  background: var(--paper);
+  background: var(--body-bg-dark);
   color: var(--ink);
   font-family: var(--font-body);
   font-size: 16px;
@@ -202,6 +208,7 @@ input:focus-visible,
 
 .header-search {
   flex: 1;
+  min-width: 0;
   max-width: 360px;
   position: relative;
 }
@@ -400,14 +407,59 @@ input:focus-visible,
 
 .feed-section + .feed-section { margin-top: 56px; }
 
+/* ==========================================================================
+   Category page header (frontend/category.html)
+   ========================================================================== */
+.category-page-header { margin-bottom: 40px; }
+.category-back-link {
+  display: inline-block;
+  font-size: 0.85rem;
+  color: var(--body-text-light-muted);
+  margin-bottom: 12px;
+}
+.category-back-link:hover { color: var(--body-text-light); }
+.category-page-title {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 600;
+  color: var(--body-text-light);
+}
+
+@media (max-width: 720px) {
+  .category-page-title { font-size: 1.5rem; }
+}
+
 .feed-heading {
   font-family: var(--font-display);
   font-size: 1.05rem;
   font-weight: 600;
-  color: var(--ink);
+  color: var(--body-text-light);
   padding-bottom: 16px;
   border-bottom: 1px solid var(--border);
   margin-bottom: 24px;
+}
+
+/* ==========================================================================
+   Empty states (feed sections + sidebar, shown when there is no real data)
+   ========================================================================== */
+.empty-state {
+  grid-column: 1 / -1;
+  padding: 32px 20px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.empty-state-title {
+  color: var(--body-text-light);
+  font-weight: 600;
+  margin: 0;
+}
+
+.empty-state-subtitle {
+  color: var(--body-text-light-muted);
+  font-size: 0.9rem;
+  margin: 6px 0 0;
 }
 
 /* ==========================================================================
@@ -440,10 +492,10 @@ input:focus-visible,
 .card-eyebrow {
   font-family: var(--font-mono);
   font-size: 0.72rem;
-  color: var(--accent-dark);
+  color: var(--body-text-light-muted);
   margin-bottom: 8px;
 }
-.card-eyebrow::before { content: "~/"; color: var(--ink-faint); }
+.card-eyebrow::before { content: "~/"; color: var(--body-text-light-muted); }
 
 .card-featured .card-title {
   font-family: var(--font-display);
@@ -451,11 +503,12 @@ input:focus-visible,
   font-weight: 600;
   line-height: 1.3;
   margin-bottom: 8px;
+  color: var(--body-text-light);
 }
 .card-featured .card-title a:hover { text-decoration: underline; text-decoration-color: var(--border-strong); }
 
 .card-desc {
-  color: var(--ink-muted);
+  color: var(--body-text-light-muted);
   font-size: 0.9rem;
   line-height: 1.55;
   margin-bottom: 14px;
@@ -467,12 +520,13 @@ input:focus-visible,
 
 .card-meta {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   font-size: 0.8rem;
-  color: var(--ink-muted);
+  color: var(--body-text-light-muted);
 }
-.meta-author { font-weight: 600; color: var(--ink-soft); }
+.meta-author { font-weight: 600; color: var(--body-text-light); }
 .meta-dot { color: var(--border-strong); }
 .meta-read { font-family: var(--font-mono); font-size: 0.75rem; }
 
@@ -499,6 +553,7 @@ input:focus-visible,
   font-weight: 600;
   line-height: 1.35;
   margin-bottom: 8px;
+  color: var(--body-text-light);
 }
 .card-row .card-title a:hover { text-decoration: underline; text-decoration-color: var(--border-strong); }
 
@@ -548,6 +603,7 @@ input:focus-visible,
   font-size: 0.95rem;
   font-weight: 600;
   margin-bottom: 20px;
+  color: var(--body-text-light);
 }
 
 .trending-list { display: flex; flex-direction: column; gap: 20px; }
@@ -578,6 +634,7 @@ input:focus-visible,
   font-size: 0.92rem;
   font-weight: 600;
   line-height: 1.4;
+  color: var(--body-text-light);
 }
 .trending-title a:hover { text-decoration: underline; text-decoration-color: var(--border-strong); }
 
@@ -588,6 +645,7 @@ input:focus-visible,
 }
 .topic-pill-cloud .topic-chip {
   border: 1px solid var(--border);
+  color: var(--body-text-light-muted);
 }
 
 .author-list { display: flex; flex-direction: column; gap: 18px; }
@@ -605,10 +663,11 @@ input:focus-visible,
 .author-name {
   font-weight: 600;
   font-size: 0.88rem;
+  color: var(--body-text-light);
 }
 .author-bio {
   font-size: 0.78rem;
-  color: var(--ink-muted);
+  color: var(--body-text-light-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -625,7 +684,7 @@ input:focus-visible,
   padding-top: 24px;
   border-top: 1px solid var(--border);
   font-size: 0.78rem;
-  color: var(--ink-faint);
+  color: var(--body-text-light-muted);
 }
 
 /* ==========================================================================
@@ -648,12 +707,99 @@ input:focus-visible,
   .header-inner { gap: 12px; }
   .logo-word { font-size: 1.2rem; }
 
-  .card-row { grid-template-columns: 1fr; }
+  .card-row { grid-template-columns: 1fr; gap: 16px; padding: 22px 0; }
   .card-media-side { order: -1; aspect-ratio: 16/9; }
 
   .layout { padding: 28px 16px 56px; }
-  .topic-nav ul { padding: 8px 16px; }
+  .topic-nav ul { padding: 10px 16px; }
+  .topic-nav .topic-chip { padding: 10px 14px; }
   .header-inner { padding: 0 16px; }
+
+  .featured-grid { gap: 20px; }
+  .card-featured .card-title { font-size: 1.15rem; }
+}
+
+/* ==========================================================================
+   Modals (Sign Up / Sign In / Write) -- reuse existing tokens/components
+   only; no new color palette or motion.
+   ========================================================================== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(11,31,58,0.55);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 1000;
+}
+.modal-overlay:not([hidden]) { display: flex; }
+.modal {
+  background: var(--paper-raised);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-pop);
+  width: 100%;
+  max-width: 400px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 24px;
+}
+.modal-wide { max-width: 640px; }
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+.modal-header h2 {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+.modal-field { margin-bottom: 16px; }
+.modal-field label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+  margin-bottom: 6px;
+}
+.modal-field input,
+.modal-field select,
+.modal-field textarea {
+  width: 100%;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  color: var(--ink);
+  background: var(--paper);
+}
+.modal-field textarea { resize: vertical; min-height: 160px; line-height: 1.55; }
+.modal-field input:focus,
+.modal-field select:focus,
+.modal-field textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(31,107,79,0.12);
+}
+.modal-error {
+  color: var(--danger);
+  font-size: 0.85rem;
+  margin-bottom: 12px;
+}
+.modal-actions .btn { width: 100%; justify-content: center; }
+.modal-switch {
+  margin-top: 16px;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+}
+
+@media (max-width: 480px) {
+  .modal { padding: 20px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,19 +1,10 @@
 /**
- * DevBlog — Homepage
+ * KaliNova — Homepage
  *
- * Phase 1: frontend-only. All data below is realistic MOCK DATA standing
- * in for the future backend contract described in the project brief:
- *
- *   GET  /api/articles
- *   GET  /api/articles/:id
- *   GET  /api/users/:id
- *   POST /api/articles/:id/like
- *   POST /api/articles/:id/bookmark
- *
- * Swap `MOCK_ARTICLES` / `MOCK_AUTHORS` for real fetch() calls to
- * http://localhost:3007/api/... once the backend endpoints exist —
- * the render functions below already take arrays of the same shape,
- * so no markup changes should be needed.
+ * All data is loaded from the real backend (GET /api/categories,
+ * GET /api/articles). Sections with no backend support yet (trending
+ * topics, popular authors, follow) render an honest empty state instead
+ * of invented data -- see renderPendingSidebarSections().
  */
 
 (() => {
@@ -23,49 +14,108 @@
   /* Mock data                                                          */
   /* ------------------------------------------------------------------ */
 
-  const AUTHORS = {
-    soumyadip: {
-      id: "soumyadip",
-      name: "Soumyadip Sasmal",
-      avatar: "https://i.pravatar.cc/64?img=12",
-      bio: "Software Engineer · DevOps · Cloud",
-      followers: 125,
-    },
-    priya: {
-      id: "priya",
-      name: "Priya Raman",
-      avatar: "https://i.pravatar.cc/64?img=32",
-      bio: "Platform engineer. Kubernetes & SRE.",
-      followers: 892,
-    },
-    marcus: {
-      id: "marcus",
-      name: "Marcus Ito",
-      avatar: "https://i.pravatar.cc/64?img=51",
-      bio: "Writes about cloud cost & architecture.",
-      followers: 2140,
-    },
-    lena: {
-      id: "lena",
-      name: "Lena Volkov",
-      avatar: "https://i.pravatar.cc/64?img=47",
-      bio: "AppSec engineer. Breaks things for a living.",
-      followers: 3310,
-    },
-    dev: {
-      id: "dev",
-      name: "Dev Okafor",
-      avatar: "https://i.pravatar.cc/64?img=15",
-      bio: "Full-stack. AI tooling. Open source.",
-      followers: 654,
-    },
-  };
+  // Generic placeholder avatar used only when a real author has no avatar_url
+  // on file -- never a stand-in for a fictional author.
+  const DEFAULT_AVATAR = "https://i.pravatar.cc/64?img=12";
 
   let ARTICLES = [];
+  let CATEGORIES = [];
 
-async function loadArticles() {
+  // The 10 categories KaliNova wants featured first in the topic nav. This is
+  // purely a *display order* preference -- the categories themselves (names,
+  // slugs, the full set of 19) always come from GET /api/categories, never
+  // hardcoded here. Anything not in this list renders afterward in whatever
+  // order the API already returned it in (its display_order).
+  const PRIORITY_CATEGORY_SLUGS = [
+    "ai-technology", "travel", "fashion-beauty", "design-creativity",
+    "food-and-lifestyle", "business-career", "finance-money",
+    "education", "health-and-wellness", "entertainment-gaming"
+  ];
+
+async function loadCategories() {
   try {
-    const response = await fetch("/api/articles");
+    const response = await fetch("/api/categories");
+    if (!response.ok) throw new Error(`API returned ${response.status}`);
+    const data = await response.json();
+
+    const prioritySet = new Set(PRIORITY_CATEGORY_SLUGS);
+    const priority = PRIORITY_CATEGORY_SLUGS
+      .map((slug) => data.categories.find((c) => c.slug === slug))
+      .filter(Boolean);
+    const rest = data.categories.filter((c) => !prioritySet.has(c.slug));
+
+    CATEGORIES = [...priority, ...rest];
+    renderCategoryChips(CATEGORIES);
+    return CATEGORIES;
+  } catch (error) {
+    console.error("Failed to load categories:", error);
+    return [];
+  }
+}
+
+// Each chip is a real link to its own page (/category/<slug>, or / for "For
+// You") so every category is a genuine, navigable, bookmarkable page.
+function renderCategoryChips(categories) {
+  const list = $("#topic-list");
+  $$(".topic-chip[data-category-slug]", list).forEach((chip) => chip.closest("li").remove());
+
+  categories.forEach((category) => {
+    const li = document.createElement("li");
+    const link = document.createElement("a");
+    link.className = "topic-chip";
+    link.dataset.categorySlug = category.slug;
+    link.href = `/category/${encodeURIComponent(category.slug)}`;
+    link.textContent = category.name;
+    li.appendChild(link);
+    list.appendChild(li);
+  });
+
+  markActiveChip(getCategorySlugFromPath());
+}
+
+function markActiveChip(activeSlug) {
+  $$(".topic-chip", $("#topic-list")).forEach((chip) => {
+    chip.classList.toggle("is-active", (chip.dataset.categorySlug || null) === activeSlug);
+  });
+}
+
+function getCategorySlugFromPath() {
+  const match = window.location.pathname.match(/^\/category\/([^/]+)\/?$/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+function mapArticle(article) {
+  return {
+    id: article.id,
+    title: article.title,
+    description: article.excerpt || article.content,
+    author: {
+      id: article.author_id,
+      name: article.author_username,
+      avatar: article.author_avatar || DEFAULT_AVATAR,
+      bio: article.author_bio || "",
+    },
+    category: article.category_name || "",
+    readMins: Math.max(
+      1,
+      Math.ceil(article.content.trim().split(/\s+/).length / 200)
+    ),
+    date: new Date(article.published_at || article.created_at).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    }),
+    image:
+      article.cover_image ||
+      "https://images.unsplash.com/photo-1518770660439-4636190af475?w=800&q=60",
+    featured: Boolean(article.is_featured),
+    trending: Boolean(article.is_trending),
+  };
+}
+
+async function loadArticles(categorySlug) {
+  try {
+    const url = categorySlug ? `/api/articles?category=${encodeURIComponent(categorySlug)}` : "/api/articles";
+    const response = await fetch(url);
 
     if (!response.ok) {
       throw new Error(`API returned ${response.status}`);
@@ -73,50 +123,27 @@ async function loadArticles() {
 
     const data = await response.json();
 
-    ARTICLES = data.articles.map((article, index) => ({
-      id: article.id,
-      title: article.title,
-      description: article.content,
-      author: {
-        id: article.author_id,
-        name: article.author,
-        avatar: "https://i.pravatar.cc/64?img=12",
-        bio: "Software Engineer · DevOps · Cloud",
-        followers: 0,
-      },
-      category: "devops",
-      readMins: Math.max(
-        1,
-        Math.ceil(article.content.trim().split(/\s+/).length / 200)
-      ),
-      date: new Date(article.created_at).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-      }),
-      image:
-        article.cover_image ||
-        "https://images.unsplash.com/photo-1518770660439-4636190af475?w=800&q=60",
-      featured: index < 2,
-    }));
+    ARTICLES = data.articles.map(mapArticle);
 
-    populateFeed();
+    renderArticleSections();
   } catch (error) {
     console.error("Failed to load articles:", error);
+    ARTICLES = [];
+    renderArticleSections();
   }
 }
 
-  const TRENDING = [];
-
-  const TRENDING_TOPICS = [
-    "Platform Engineering",
-    "Zero Trust",
-    "Rust",
-    "FinOps",
-    "LLM Ops",
-    "GitOps",
-  ];
-
-  const POPULAR_AUTHORS = [AUTHORS.lena, AUTHORS.marcus, AUTHORS.priya];
+async function loadTrending() {
+  try {
+    const response = await fetch("/api/articles?trending=true");
+    if (!response.ok) throw new Error(`API returned ${response.status}`);
+    const data = await response.json();
+    renderTrendingSidebar(data.articles.map(mapArticle));
+  } catch (error) {
+    console.error("Failed to load trending stories:", error);
+    renderTrendingSidebar([]);
+  }
+}
 
   /* ------------------------------------------------------------------ */
   /* Rendering helpers                                                  */
@@ -124,13 +151,6 @@ async function loadArticles() {
 
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
-
-  function categoryLabel(cat) {
-    return cat
-      .split("-")
-      .map((w) => w[0].toUpperCase() + w.slice(1))
-      .join(" ");
-  }
 
   function fillMeta(card, article) {
     const authorImg = $(".card-meta img.avatar, .card-meta-top img.avatar", card);
@@ -145,7 +165,7 @@ async function loadArticles() {
     const dateSpan = $(".meta-date", card);
     if (dateSpan) dateSpan.textContent = article.date;
     const eyebrow = $(".card-eyebrow", card);
-    if (eyebrow) eyebrow.textContent = categoryLabel(article.category);
+    if (eyebrow) eyebrow.textContent = article.category || "General";
   }
 
   function renderFeaturedCard(article) {
@@ -235,31 +255,79 @@ async function loadArticles() {
   const PAGE_SIZE = 4;
   let latestShown = 0;
 
-  function populateFeed() {
+  function renderEmptyState(container, title, subtitle) {
+    container.innerHTML = "";
+    const wrap = document.createElement("div");
+    wrap.className = "empty-state";
+    const heading = document.createElement("p");
+    heading.className = "empty-state-title";
+    heading.textContent = title;
+    wrap.appendChild(heading);
+    if (subtitle) {
+      const sub = document.createElement("p");
+      sub.className = "empty-state-subtitle";
+      sub.textContent = subtitle;
+      wrap.appendChild(sub);
+    }
+    container.appendChild(wrap);
+  }
+
+  // Re-run every time ARTICLES changes (initial load or a category filter),
+  // so the feed sections are cleared first to avoid duplicating cards.
+  function renderArticleSections() {
+    latestShown = 0;
+
     const featuredGrid = $("#featured-grid");
-    ARTICLES.filter((a) => a.featured).forEach((a) => featuredGrid.appendChild(renderFeaturedCard(a)));
+    featuredGrid.innerHTML = "";
+    const featured = ARTICLES.filter((a) => a.featured);
+    if (featured.length === 0) {
+      renderEmptyState(featuredGrid, "No featured stories yet.", "Check back soon.");
+    } else {
+      featured.forEach((a) => featuredGrid.appendChild(renderFeaturedCard(a)));
+    }
+
+    const rest = ARTICLES.filter((a) => !a.featured);
 
     const recommended = $("#recommended-list");
-    ARTICLES.filter((a) => !a.featured)
-      .slice(0, 2)
-      .forEach((a) => recommended.appendChild(renderArticleRow(a)));
+    recommended.innerHTML = "";
+    if (rest.length === 0) {
+      renderEmptyState(recommended, "Nothing to recommend yet.", "New stories will show up here once they're published.");
+    } else {
+      rest.slice(0, 2).forEach((a) => recommended.appendChild(renderArticleRow(a)));
+    }
 
-    renderMoreLatest();
+    const latestList = $("#latest-list");
+    latestList.innerHTML = "";
+    const loadMoreBtn = $("#load-more-btn");
+    if (rest.length <= 2) {
+      loadMoreBtn.hidden = true;
+      if (rest.length === 0) {
+        renderEmptyState(latestList, "No stories have been published yet.", "Be the first to write one.");
+      }
+    } else {
+      loadMoreBtn.hidden = false;
+      renderMoreLatest();
+    }
+  }
 
+  // "Trending topics" and "Popular authors" have no public backend endpoint
+  // yet (no tag-popularity API; GET /api/authors only fetches a single author
+  // by id, and there is no follow API wired to the existing `follows` table).
+  // Rather than showing invented names, both sections render an honest empty
+  // state until those endpoints exist.
+  function renderPendingSidebarSections() {
+    renderEmptyState($("#topic-cloud"), "No trending topics yet.");
+    renderEmptyState($("#author-list"), "No popular authors yet.");
+  }
+
+  function renderTrendingSidebar(articles) {
     const trendingList = $("#trending-list");
-    TRENDING.forEach((a, i) => trendingList.appendChild(renderTrendingItem(a, i)));
-
-    const topicCloud = $("#topic-cloud");
-    TRENDING_TOPICS.forEach((t) => {
-      const btn = document.createElement("button");
-      btn.className = "topic-chip";
-      btn.type = "button";
-      btn.textContent = t;
-      topicCloud.appendChild(btn);
-    });
-
-    const authorList = $("#author-list");
-    POPULAR_AUTHORS.forEach((a) => authorList.appendChild(renderAuthorItem(a)));
+    trendingList.innerHTML = "";
+    if (articles.length === 0) {
+      renderEmptyState(trendingList, "Nothing trending yet.");
+      return;
+    }
+    articles.forEach((a, i) => trendingList.appendChild(renderTrendingItem(a, i)));
   }
 
   function renderMoreLatest() {
@@ -270,74 +338,80 @@ async function loadArticles() {
     latestShown += nextBatch.length;
 
     const loadMoreBtn = $("#load-more-btn");
-    if (latestShown >= rest.length) {
-      loadMoreBtn.hidden = true;
-    }
+    loadMoreBtn.hidden = latestShown >= rest.length;
   }
 
   $("#load-more-btn").addEventListener("click", renderMoreLatest);
 
   /* ------------------------------------------------------------------ */
-  /* Topic nav filtering (client-side, against mock data)               */
-  /* ------------------------------------------------------------------ */
-
-  $("#topic-list").addEventListener("click", (e) => {
-    const chip = e.target.closest(".topic-chip");
-    if (!chip) return;
-    $$(".topic-chip", $("#topic-list")).forEach((c) => c.classList.remove("is-active"));
-    chip.classList.add("is-active");
-    // Future: filter ARTICLES by chip.dataset.topic and re-render feed.
-  });
-
-  /* ------------------------------------------------------------------ */
-  /* Search (client-side against mock data)                              */
+  /* Search -- calls the existing GET /api/articles?search= backend       */
+  /* filter (Phase 4); debounced so we don't fire a request per keystroke.*/
   /* ------------------------------------------------------------------ */
 
   const searchInput = $("#site-search");
   const searchResults = $("#search-results");
+  let searchDebounce = null;
+  let searchRequestId = 0;
 
-  function runSearch(query) {
-    const q = query.trim().toLowerCase();
-    searchResults.innerHTML = "";
+  async function runSearch(query) {
+    const q = query.trim();
 
     if (!q) {
       searchResults.hidden = true;
+      searchResults.innerHTML = "";
       return;
     }
 
-    const matches = ARTICLES.filter((a) => {
-      return (
-        a.title.toLowerCase().includes(q) ||
-        a.author.name.toLowerCase().includes(q) ||
-        a.category.toLowerCase().includes(q)
-      );
-    }).slice(0, 6);
+    const requestId = ++searchRequestId;
+    try {
+      const response = await fetch(`/api/articles?search=${encodeURIComponent(q)}`);
+      if (!response.ok) throw new Error(`API returned ${response.status}`);
+      const data = await response.json();
+      if (requestId !== searchRequestId) return; // a newer search superseded this one
 
-    if (matches.length === 0) {
+      searchResults.innerHTML = "";
+      const matches = data.articles.slice(0, 6);
+
+      if (matches.length === 0) {
+        const empty = document.createElement("p");
+        empty.className = "search-empty";
+        empty.textContent = `No results for "${query}"`;
+        searchResults.appendChild(empty);
+      } else {
+        matches.forEach((article) => {
+          const a = mapArticle(article);
+          const link = document.createElement("a");
+          link.href = "#article";
+          const title = document.createElement("span");
+          title.className = "search-result-title";
+          title.textContent = a.title;
+          const meta = document.createElement("span");
+          meta.className = "search-result-meta";
+          meta.style.display = "block";
+          meta.textContent = `${a.author.name} · ${a.category || "General"} · ${a.readMins} min`;
+          link.appendChild(title);
+          link.appendChild(meta);
+          searchResults.appendChild(link);
+        });
+      }
+      searchResults.hidden = false;
+    } catch (error) {
+      if (requestId !== searchRequestId) return;
+      console.error("Search failed:", error);
+      searchResults.innerHTML = "";
       const empty = document.createElement("p");
       empty.className = "search-empty";
-      empty.textContent = `No results for "${query}"`;
+      empty.textContent = "Search is unavailable right now.";
       searchResults.appendChild(empty);
-    } else {
-      matches.forEach((a) => {
-        const link = document.createElement("a");
-        link.href = "#article";
-        const title = document.createElement("span");
-        title.className = "search-result-title";
-        title.textContent = a.title;
-        const meta = document.createElement("span");
-        meta.className = "search-result-meta";
-        meta.style.display = "block";
-        meta.textContent = `${a.author.name} · ${categoryLabel(a.category)} · ${a.readMins} min`;
-        link.appendChild(title);
-        link.appendChild(meta);
-        searchResults.appendChild(link);
-      });
+      searchResults.hidden = false;
     }
-    searchResults.hidden = false;
   }
 
-  searchInput.addEventListener("input", (e) => runSearch(e.target.value));
+  searchInput.addEventListener("input", (e) => {
+    const value = e.target.value;
+    clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(() => runSearch(value), 250);
+  });
   $("#search-form").addEventListener("submit", (e) => e.preventDefault());
 
   document.addEventListener("click", (e) => {
@@ -391,25 +465,282 @@ async function loadArticles() {
   });
 
   /* ------------------------------------------------------------------ */
-  /* Auth buttons (UI-only placeholders — Phase 8 wires these up)        */
+  /* Session (JWT) storage                                              */
   /* ------------------------------------------------------------------ */
 
-  ["signin-btn", "getstarted-btn", "write-btn", "mobile-signin-btn", "mobile-getstarted-btn", "mobile-write-btn"].forEach(
-    (id) => {
-      const el = document.getElementById(id);
-      if (el) {
-        el.addEventListener("click", () => {
-          // Phase 1 scope: no auth pages/editor yet. This is a hook point
-          // for Phase 7/8/3 to attach real navigation.
-          console.info(`[DevBlog] "${el.textContent.trim()}" clicked — not yet wired (later phase).`);
-        });
-      }
+  const SESSION_KEY = "kalinova_session";
+
+  function getSession() {
+    try {
+      const raw = localStorage.getItem(SESSION_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (error) {
+      return null;
     }
-  );
+  }
+
+  function setSession(token, user) {
+    try {
+      localStorage.setItem(SESSION_KEY, JSON.stringify({ token, user }));
+    } catch (error) {
+      console.error("Failed to store session:", error);
+    }
+  }
+
+  function clearSession() {
+    try {
+      localStorage.removeItem(SESSION_KEY);
+    } catch (error) {
+      /* ignore -- nothing to clear */
+    }
+  }
+
+  function updateAuthUI() {
+    const session = getSession();
+    const signedIn = Boolean(session && session.token);
+    $$("#signin-btn, #getstarted-btn, #mobile-signin-btn, #mobile-getstarted-btn").forEach((el) => {
+      el.hidden = signedIn;
+    });
+    const userMenu = $("#user-menu");
+    if (userMenu) userMenu.hidden = !signedIn;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Auth modal (Sign Up / Sign In) -- calls the existing               */
+  /* /api/auth/register and /api/auth/login endpoints directly.         */
+  /* ------------------------------------------------------------------ */
+
+  const authModal = $("#auth-modal");
+  const authForm = $("#auth-form");
+  const authError = $("#auth-error");
+  const authUsernameField = $("#auth-username-field");
+  const authUsernameInput = $("#auth-username");
+  const authSubmitBtn = $("#auth-submit-btn");
+  const authSwitchBtn = $("#auth-switch-btn");
+  const authSwitchText = $("#auth-switch-text");
+  const authModalTitle = $("#auth-modal-title");
+
+  let authMode = "signin";
+
+  function setAuthMode(mode) {
+    authMode = mode;
+    authError.hidden = true;
+    if (mode === "signup") {
+      authModalTitle.textContent = "Create your account";
+      authUsernameField.hidden = false;
+      authUsernameInput.required = true;
+      authSubmitBtn.textContent = "Sign Up";
+      authSwitchText.textContent = "Already have an account?";
+      authSwitchBtn.textContent = "Sign in";
+    } else {
+      authModalTitle.textContent = "Sign In";
+      authUsernameField.hidden = true;
+      authUsernameInput.required = false;
+      authSubmitBtn.textContent = "Sign In";
+      authSwitchText.textContent = "New to KaliNova?";
+      authSwitchBtn.textContent = "Create an account";
+    }
+  }
+
+  function openAuthModal(mode) {
+    setAuthMode(mode);
+    authForm.reset();
+    authError.hidden = true;
+    authModal.hidden = false;
+  }
+
+  function closeAuthModal() {
+    authModal.hidden = true;
+  }
+
+  $("#auth-modal-close").addEventListener("click", closeAuthModal);
+  authSwitchBtn.addEventListener("click", () => setAuthMode(authMode === "signin" ? "signup" : "signin"));
+  authModal.addEventListener("click", (e) => {
+    if (e.target === authModal) closeAuthModal();
+  });
+
+  authForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    authError.hidden = true;
+    const email = $("#auth-email").value.trim();
+    const password = $("#auth-password").value;
+    authSubmitBtn.disabled = true;
+    try {
+      if (authMode === "signup") {
+        const username = authUsernameInput.value.trim();
+        const registerRes = await fetch("/api/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, email, password }),
+        });
+        const registerData = await registerRes.json();
+        if (!registerRes.ok) throw new Error(registerData.error || "Registration failed");
+      }
+      const loginRes = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const loginData = await loginRes.json();
+      if (!loginRes.ok) throw new Error(loginData.error || "Sign in failed");
+      setSession(loginData.token, loginData.user);
+      updateAuthUI();
+      closeAuthModal();
+    } catch (error) {
+      authError.textContent = error.message;
+      authError.hidden = false;
+    } finally {
+      authSubmitBtn.disabled = false;
+    }
+  });
+
+  /* ------------------------------------------------------------------ */
+  /* Write modal -- calls the existing authenticated POST /api/articles */
+  /* ------------------------------------------------------------------ */
+
+  const writeModal = $("#write-modal");
+  const writeForm = $("#write-form");
+  const writeError = $("#write-error");
+  const writeSubmitBtn = $(".btn-primary", writeForm);
+
+  function populateCategorySelect() {
+    const select = $("#write-category");
+    select.innerHTML = '<option value="">No category</option>';
+    CATEGORIES.forEach((category) => {
+      const option = document.createElement("option");
+      option.value = category.id;
+      option.textContent = category.name;
+      select.appendChild(option);
+    });
+  }
+
+  function openWriteModal() {
+    const session = getSession();
+    if (!session || !session.token) {
+      openAuthModal("signin");
+      return;
+    }
+    writeForm.reset();
+    writeError.hidden = true;
+    populateCategorySelect();
+    writeModal.hidden = false;
+  }
+
+  function closeWriteModal() {
+    writeModal.hidden = true;
+  }
+
+  $("#write-modal-close").addEventListener("click", closeWriteModal);
+  writeModal.addEventListener("click", (e) => {
+    if (e.target === writeModal) closeWriteModal();
+  });
+
+  writeForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    writeError.hidden = true;
+    const session = getSession();
+    if (!session || !session.token) {
+      closeWriteModal();
+      openAuthModal("signin");
+      return;
+    }
+    const title = $("#write-title").value.trim();
+    const content = $("#write-content").value.trim();
+    const categoryId = $("#write-category").value;
+    writeSubmitBtn.disabled = true;
+    try {
+      const response = await fetch("/api/articles", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.token}`,
+        },
+        body: JSON.stringify({
+          title,
+          content,
+          category_id: categoryId || undefined,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not save the article");
+      closeWriteModal();
+      window.alert("Draft saved. It will appear publicly once an admin reviews and publishes it.");
+    } catch (error) {
+      writeError.textContent = error.message;
+      writeError.hidden = false;
+    } finally {
+      writeSubmitBtn.disabled = false;
+    }
+  });
+
+  /* ------------------------------------------------------------------ */
+  /* Auth / write triggers (header + mobile drawer) and sign-out         */
+  /* ------------------------------------------------------------------ */
+
+  function bindTrigger(id, handler) {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener("click", handler);
+  }
+
+  bindTrigger("signin-btn", () => openAuthModal("signin"));
+  bindTrigger("mobile-signin-btn", () => openAuthModal("signin"));
+  bindTrigger("getstarted-btn", () => openAuthModal("signup"));
+  bindTrigger("mobile-getstarted-btn", () => openAuthModal("signup"));
+  bindTrigger("write-btn", openWriteModal);
+  bindTrigger("mobile-write-btn", openWriteModal);
+
+  const logoutBtn = $("#logout-btn");
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", () => {
+      clearSession();
+      updateAuthUI();
+      if (userMenuPanel) {
+        userMenuPanel.hidden = true;
+        userMenuBtn.setAttribute("aria-expanded", "false");
+      }
+    });
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Category page (frontend/category.html, served at /category/:slug)  */
+  /* ------------------------------------------------------------------ */
+
+  async function initCategoryPage(slug) {
+    const body = $("#category-page-body");
+    const notFound = $("#category-not-found");
+    const title = $("#category-page-title");
+    const categories = await loadCategories();
+    const category = categories.find((c) => c.slug === slug);
+
+    if (!category) {
+      title.textContent = "Category not found";
+      body.hidden = true;
+      notFound.hidden = false;
+      return;
+    }
+
+    document.title = `${category.name} — KaliNova`;
+    title.textContent = category.name;
+    body.hidden = false;
+    notFound.hidden = true;
+    loadArticles(slug);
+  }
 
   /* ------------------------------------------------------------------ */
   /* Init                                                                */
   /* ------------------------------------------------------------------ */
 
-  document.addEventListener("DOMContentLoaded", loadArticles);
+  document.addEventListener("DOMContentLoaded", () => {
+    updateAuthUI();
+    renderPendingSidebarSections();
+    loadTrending();
+
+    const categorySlug = getCategorySlugFromPath();
+    if (categorySlug) {
+      initCategoryPage(categorySlug);
+    } else {
+      loadCategories();
+      loadArticles();
+    }
+  });
 })();
