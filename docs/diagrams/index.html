@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>KaliNova — Architecture & DevSecOps Diagrams</title>
+  <style>
+    :root {
+      --bg: #0B1220;
+      --panel: #101a2c;
+      --grid: #17233b;
+      --text: #C9D3E3;
+      --text-dim: #6b7688;
+      --accent: #4C8DFF;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 1px 1px, var(--grid) 1px, transparent 1px) 0 0/24px 24px,
+        var(--bg);
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      color: var(--text);
+    }
+    header {
+      position: sticky; top: 0; z-index: 10;
+      background: rgba(11,18,32,0.92);
+      backdrop-filter: blur(6px);
+      border-bottom: 1px solid #1c2740;
+      padding: 14px 28px;
+      display: flex; align-items: center; gap: 24px;
+      flex-wrap: wrap;
+    }
+    header .brand {
+      font-weight: 700; color: #fff; font-size: 15px; letter-spacing: 0.3px;
+    }
+    header .brand span { color: var(--accent); }
+    header nav { display: flex; gap: 4px; flex-wrap: wrap; }
+    header nav a {
+      color: var(--text-dim); text-decoration: none; font-size: 12px;
+      padding: 6px 10px; border-radius: 6px; border: 1px solid transparent;
+    }
+    header nav a:hover { color: var(--text); border-color: #26314a; background: #14203a; }
+    main { padding: 40px 28px 120px; max-width: 1500px; margin: 0 auto; }
+    .frame { margin-bottom: 64px; }
+    .frame-label {
+      display: flex; align-items: baseline; gap: 10px;
+      color: #fff; font-size: 14px; font-weight: 700; margin-bottom: 14px;
+      letter-spacing: 0.2px;
+    }
+    .frame-label .dot {
+      width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+      box-shadow: 0 0 0 3px rgba(76,141,255,0.18);
+    }
+    .frame-sub { color: var(--text-dim); font-weight: 400; font-size: 11.5px; }
+    .frame-canvas {
+      background: #F5F7FB;
+      border-radius: 16px;
+      border: 1px solid #1c2740;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+      padding: 12px;
+      overflow-x: auto;
+    }
+    .frame-canvas img, .frame-canvas svg { display: block; width: 100%; height: auto; }
+    .frame-canvas img { cursor: zoom-in; }
+    .frame-canvas img.zoomed { cursor: zoom-out; width: auto; height: auto; max-width: none; }
+    footer {
+      text-align: center; color: var(--text-dim); font-size: 11px;
+      padding: 20px; border-top: 1px solid #1c2740;
+    }
+    .corrections {
+      background: #1a2332; border: 1px solid #2a3a52; border-radius: 12px;
+      padding: 20px 24px; margin-bottom: 40px; max-width: 1100px;
+    }
+    .corrections h2 { color: #fff; font-size: 14px; margin: 0 0 12px; }
+    .corrections ul { margin: 0; padding-left: 20px; }
+    .corrections li { color: var(--text-dim); font-size: 12px; margin-bottom: 6px; }
+    .corrections li strong { color: #DC2626; }
+    .corrections li span { color: #16A34A; }
+  </style>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      document.querySelectorAll('.frame-canvas img').forEach(function(img) {
+        img.addEventListener('click', function() { this.classList.toggle('zoomed'); });
+      });
+    });
+  </script>
+</head>
+<body>
+<header>
+  <div class="brand">KaliNova<span>_</span>docs</div>
+  <nav>
+    <a href="#sec-0">System Architecture</a>
+    <a href="#sec-1">DevSecOps CI/CD Pipeline</a>
+    <a href="#sec-2">Database ER Diagram</a>
+    <a href="#sec-3">Application User Flow</a>
+    <a href="#sec-4">Defense-in-Depth Security</a>
+  </nav>
+</header>
+<main>
+
+  <div class="corrections">
+    <h2>CORRECTIONS vs. Reference Diagrams (verified against actual repository)</h2>
+    <ul>
+      <li><strong>CI/CD Orchestrator:</strong> Reference shows Jenkins — actual repo uses <span>GitHub Actions</span> (devsecops-pipeline.yml)</li>
+      <li><strong>Security Headers (Helmet):</strong> Reference marks as Live — <strong>NOT installed</strong> (not in package.json dependencies)</li>
+      <li><strong>CORS allow-list:</strong> Reference marks as Live — <strong>NOT implemented</strong> (no cors middleware)</li>
+      <li><strong>Rate Limiting:</strong> Reference marks app-level as Live — <strong>NOT implemented</strong> (no express-rate-limit)</li>
+      <li><strong>XSS / SQLi protection:</strong> Reference marks as Live — <strong>NOT implemented</strong> (parameterized queries are live, but no XSS sanitization)</li>
+      <li><strong>Docker:</strong> Reference shows HEALTHCHECK — actual Dockerfile has <strong>no HEALTHCHECK</strong> and <strong>runs as root</strong></li>
+      <li><strong>SAST job:</strong> Reference shows CodeQL/Semgrep — actual "sast_scan" job only runs <span>TruffleHog</span> (secret scanning, not SAST)</li>
+      <li><strong>Trivy exit-code:</strong> Set to 0 — <strong>reports only, never blocks</strong> even on CRITICAL findings</li>
+      <li><strong>Tests:</strong> Reference shows Jest + Supertest — actual npm test just <strong>echoes "No tests yet"</strong></li>
+      <li><strong>Frontend expects:</strong> /api/categories, ?category=, ?trending=, ?search= — <strong>none of these endpoints exist</strong> in server.js</li>
+    </ul>
+  </div>
+
+  <section class="frame" id="sec-0">
+    <div class="frame-label"><span class="dot"></span>System Architecture<span class="frame-sub">Client, edge, application, business modules, data and infrastructure layers</span></div>
+    <div class="frame-canvas">
+      <object type="image/svg+xml" data="01-system-architecture.svg" style="width:100%;height:auto;">System Architecture Diagram</object>
+    </div>
+  </section>
+
+  <section class="frame" id="sec-1">
+    <div class="frame-label"><span class="dot"></span>DevSecOps CI/CD Pipeline<span class="frame-sub">Source to production, with an explicit security gate before deployment</span></div>
+    <div class="frame-canvas">
+      <object type="image/svg+xml" data="02-devsecops-pipeline.svg" style="width:100%;height:auto;">DevSecOps Pipeline Diagram</object>
+    </div>
+  </section>
+
+  <section class="frame" id="sec-2">
+    <div class="frame-label"><span class="dot"></span>Database ER Diagram<span class="frame-sub">PostgreSQL entities, keys, and relationships</span></div>
+    <div class="frame-canvas">
+      <object type="image/svg+xml" data="03-database-er.svg" style="width:100%;height:auto;">Database ER Diagram</object>
+    </div>
+  </section>
+
+  <section class="frame" id="sec-3">
+    <div class="frame-label"><span class="dot"></span>Application User Flow<span class="frame-sub">Navigation, auth, content, social, portfolio, marketplace</span></div>
+    <div class="frame-canvas">
+      <object type="image/svg+xml" data="04-application-user-flow.svg" style="width:100%;height:auto;">Application User Flow Diagram</object>
+    </div>
+  </section>
+
+  <section class="frame" id="sec-4">
+    <div class="frame-label"><span class="dot"></span>Defense-in-Depth Security<span class="frame-sub">Eight layers from edge to monitoring</span></div>
+    <div class="frame-canvas">
+      <object type="image/svg+xml" data="05-defense-in-depth.svg" style="width:100%;height:auto;">Defense-in-Depth Security Diagram</object>
+    </div>
+  </section>
+
+</main>
+<footer>Generated diagrams · Live = implemented · Planned = designed, not built · Target = production infrastructure not yet provisioned</footer>
+</body>
+</html>

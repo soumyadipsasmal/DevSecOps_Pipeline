@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>KaliNova — Read. Write. Share.</title>
-<meta name="description" content="KaliNova is a publishing platform for developers, DevOps engineers, and technologists to read and share ideas.">
+<meta name="description" content="KaliNova is a platform for developers, DevOps engineers, and technologists to read, write, build portfolios, and sell products.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -12,47 +12,55 @@
 </head>
 <body>
 
-<a class="skip-link" href="#main-content">Skip to content</a>
+<a class="skip-link" href="#app">Skip to content</a>
 
 <!-- ============ HEADER ============ -->
 <header class="site-header">
   <div class="header-inner">
     <div class="header-left">
-      <a href="/" class="logo" aria-label="KaliNova home">
+      <a href="#/" class="logo" aria-label="KaliNova home">
         <img src="/assets/kalinova-logo.png" alt="KaliNova" class="logo-image">
       </a>
     </div>
 
     <div class="header-search">
-      <form role="search" class="search-form" id="search-form">
-        <label for="site-search" class="sr-only">Search articles, authors, and topics</label>
+      <form role="search" class="search-form" id="header-search-form">
+        <label for="header-search" class="sr-only">Search articles, authors, topics, products...</label>
         <svg class="search-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
         </svg>
-        <input type="search" id="site-search" name="q" placeholder="Search KaliNova" autocomplete="off">
+        <input type="search" id="header-search" name="q" placeholder="Search KaliNova" autocomplete="off">
       </form>
       <div class="search-results" id="search-results" hidden></div>
     </div>
 
     <nav class="header-right" aria-label="Primary">
-      <button class="btn btn-ghost btn-icon-text" id="write-btn" type="button">
-        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
-        </svg>
-        <span>Write</span>
-      </button>
+      <!-- Guest nav -->
+      <a href="#/" class="btn btn-ghost nav-link" id="nav-home">For You</a>
+      <a href="#/stories" class="btn btn-ghost nav-link" id="nav-stories">Stories</a>
+      <a href="#/guest-posts" class="btn btn-ghost nav-link" id="nav-guest-posts">Guest Posts</a>
+      <a href="#/cv" class="btn btn-ghost nav-link" id="nav-cv">CV</a>
+      <a href="#/news" class="btn btn-ghost nav-link" id="nav-news">News</a>
+      <a href="#/portfolio" class="btn btn-ghost nav-link" id="nav-portfolio">Portfolio</a>
+      <a href="#/marketplace" class="btn btn-ghost nav-link" id="nav-marketplace">Marketplace</a>
 
       <button class="btn btn-text" id="signin-btn" type="button">Sign In</button>
       <button class="btn btn-primary" id="getstarted-btn" type="button">Get Started</button>
 
+      <!-- Auth nav (hidden by default) -->
       <div class="user-menu" id="user-menu" hidden>
         <button class="avatar-btn" id="user-menu-btn" type="button" aria-haspopup="true" aria-expanded="false">
           <img src="https://i.pravatar.cc/64?img=12" alt="" class="avatar avatar-sm">
         </button>
         <div class="user-menu-panel" id="user-menu-panel" hidden role="menu">
-          <a href="#profile" role="menuitem">Profile</a>
-          <a href="#drafts" role="menuitem">Drafts</a>
-          <a href="#reading-list" role="menuitem">Reading list</a>
+          <a href="#/dashboard" role="menuitem">Dashboard</a>
+          <a href="#/profile/me" role="menuitem">My Profile</a>
+          <a href="#/stories" role="menuitem">My Stories</a>
+          <a href="#/guest-posts" role="menuitem">My Guest Posts</a>
+          <a href="#/cv" role="menuitem">My CV</a>
+          <a href="#/portfolio" role="menuitem">My Portfolio</a>
+          <a href="#/marketplace" role="menuitem">My Marketplace</a>
+          <a href="#/settings" role="menuitem">Settings</a>
           <hr>
           <button type="button" role="menuitem" id="logout-btn">Sign out</button>
         </div>
@@ -63,115 +71,67 @@
       <span></span><span></span><span></span>
     </button>
   </div>
-
-  <!-- TOPIC NAV: "For You" is a static view (no category filter); every other
-       chip is rendered by script.js from GET /api/categories. -->
-  <nav class="topic-nav" aria-label="Topics">
-    <ul id="topic-list">
-      <li><a class="topic-chip is-active" href="/">For You</a></li>
-    </ul>
-  </nav>
 </header>
 
 <!-- Mobile drawer -->
 <div class="mobile-drawer" id="mobile-drawer" hidden>
-  <button class="btn btn-ghost btn-icon-text" id="mobile-write-btn" type="button">Write</button>
-  <button class="btn btn-text" id="mobile-signin-btn" type="button">Sign In</button>
-  <button class="btn btn-primary" id="mobile-getstarted-btn" type="button">Get Started</button>
+  <a href="#/" class="mobile-nav-link">For You</a>
+  <a href="#/stories" class="mobile-nav-link">Stories</a>
+  <a href="#/guest-posts" class="mobile-nav-link">Guest Posts</a>
+  <a href="#/cv" class="mobile-nav-link">CV</a>
+  <a href="#/news" class="mobile-nav-link">News</a>
+  <a href="#/portfolio" class="mobile-nav-link">Portfolio</a>
+  <a href="#/marketplace" class="mobile-nav-link">Marketplace</a>
+  <a href="#/search" class="mobile-nav-link">Search</a>
+  <hr class="mobile-drawer-divider">
+  <a href="#/dashboard" class="mobile-nav-link mobile-auth-link" hidden>Dashboard</a>
+  <a href="#/settings" class="mobile-nav-link mobile-auth-link" hidden>Settings</a>
+  <button class="btn btn-text mobile-auth-btn" id="mobile-signin-btn" type="button">Sign In</button>
+  <button class="btn btn-primary mobile-auth-btn" id="mobile-getstarted-btn" type="button">Get Started</button>
+  <button class="btn btn-text mobile-auth-btn mobile-logout-btn" id="mobile-logout-btn" type="button" hidden>Sign Out</button>
 </div>
 
-<!-- ============ MAIN ============ -->
-<main id="main-content">
-  <div class="layout">
-
-    <!-- FEED -->
-    <div class="feed">
-
-      <section class="feed-section" aria-labelledby="featured-heading">
-        <h2 class="feed-heading" id="featured-heading">Featured stories</h2>
-        <div class="featured-grid" id="featured-grid"></div>
-      </section>
-
-      <section class="feed-section" aria-labelledby="recommended-heading">
-        <div class="feed-heading-row">
-          <h2 class="feed-heading" id="recommended-heading">Recommended for you</h2>
-        </div>
-        <div class="article-list" id="recommended-list"></div>
-      </section>
-
-      <section class="feed-section" aria-labelledby="latest-heading">
-        <h2 class="feed-heading" id="latest-heading">Latest stories</h2>
-        <div class="article-list" id="latest-list"></div>
-        <button class="btn btn-outline load-more" id="load-more-btn" type="button">Show more stories</button>
-      </section>
-
-    </div>
-
-    <!-- SIDEBAR -->
-    <aside class="sidebar" aria-label="Trending and authors">
-
-      <section class="side-card" aria-labelledby="trending-heading">
-        <h2 class="side-heading" id="trending-heading">Trending on KaliNova</h2>
-        <ol class="trending-list" id="trending-list"></ol>
-      </section>
-
-      <section class="side-card" aria-labelledby="topics-heading">
-        <h2 class="side-heading" id="topics-heading">Trending topics</h2>
-        <div class="topic-pill-cloud" id="topic-cloud"></div>
-      </section>
-
-      <section class="side-card" aria-labelledby="authors-heading">
-        <h2 class="side-heading" id="authors-heading">Popular authors</h2>
-        <ul class="author-list" id="author-list"></ul>
-      </section>
-
-      <p class="side-footnote">KaliNova &copy; 2026 · Built for developers, by developers.</p>
-    </aside>
-
-  </div>
-</main>
+<!-- ============ APP CONTAINER ============ -->
+<div id="app">
+  <div class="page-loading"><div class="spinner"></div><p>Loading...</p></div>
+</div>
 
 <!-- ============ FOOTER ============ -->
 <footer class="site-footer" aria-label="Site footer">
   <div class="footer-inner">
     <div class="footer-brand">
-      <a href="/" class="footer-logo" aria-label="KaliNova home">
+      <a href="#/" class="footer-logo" aria-label="KaliNova home">
         <img src="/assets/kalinova-logo.png" alt="KaliNova" class="footer-logo-image">
       </a>
-      <p class="footer-tagline">KaliNova is a publishing platform for developers, DevOps engineers, and technologists to read, write, and share ideas.</p>
-      <p class="footer-motto">Read. Write. Share.</p>
+      <p class="footer-tagline">KaliNova is a platform for developers, DevOps engineers, and technologists to read, write, build portfolios, and sell products.</p>
+      <p class="footer-motto">Read. Write. Share. Build. Sell.</p>
     </div>
 
     <nav class="footer-col" aria-label="Explore">
-      <h3 class="footer-heading">Explore</h3>
+      <h3 class="footer-heading">Content</h3>
       <ul class="footer-links">
-        <li><a href="/">For You</a></li>
-        <li><a href="/category/ai-technology">AI &amp; Technology</a></li>
-        <li><a href="/category/travel">Travel</a></li>
-        <li><a href="/category/fashion-beauty">Fashion &amp; Beauty</a></li>
-        <li><a href="/category/design-creativity">Design &amp; Creativity</a></li>
-        <li><a href="/category/food-and-lifestyle">Food and Lifestyle</a></li>
-        <li><a href="/category/business-career">Business &amp; Entrepreneurship</a></li>
+        <li><a href="#/">For You</a></li>
+        <li><a href="#/stories">Stories</a></li>
+        <li><a href="#/guest-posts">Guest Posts</a></li>
+        <li><a href="#/news">News</a></li>
       </ul>
     </nav>
 
-    <nav class="footer-col" aria-label="Company">
-      <h3 class="footer-heading">Company</h3>
+    <nav class="footer-col" aria-label="Career">
+      <h3 class="footer-heading">Career</h3>
       <ul class="footer-links">
-        <li class="footer-link-text">About</li>
-        <li class="footer-link-text">Contact</li>
-        <li class="footer-link-text">Careers</li>
-        <li class="footer-link-text">Privacy Policy</li>
-        <li class="footer-link-text">Terms of Service</li>
+        <li><a href="#/cv">CV / Resume</a></li>
+        <li><a href="#/portfolio">Portfolio Builder</a></li>
+        <li><a href="#/profile/me">My Profile</a></li>
       </ul>
     </nav>
 
-    <nav class="footer-col" aria-label="Support">
-      <h3 class="footer-heading">Support</h3>
+    <nav class="footer-col" aria-label="Business">
+      <h3 class="footer-heading">Business</h3>
       <ul class="footer-links">
-        <li class="footer-link-text">Help Center</li>
-        <li class="footer-link-text">Community Guidelines</li>
-        <li class="footer-link-text">Report an Issue</li>
+        <li><a href="#/marketplace">Marketplace</a></li>
+        <li><a href="#/marketplace">Products</a></li>
+        <li><a href="#/marketplace">Services</a></li>
       </ul>
     </nav>
 
@@ -179,6 +139,7 @@
       <h3 class="footer-heading">Contact</h3>
       <ul class="footer-links">
         <li><a href="mailto:soumyadipsasmal88@gmail.com">soumyadipsasmal88@gmail.com</a></li>
+        <li><a href="mailto:soumyadipsasmal10@gmail.com">soumyadipsasmal10@gmail.com</a></li>
         <li><a href="tel:+916290687215">+91 6290687215</a></li>
       </ul>
     </div>
@@ -190,90 +151,13 @@
   </div>
 </footer>
 
-<!-- Templates (used by script.js) -->
-<template id="tpl-featured-card">
-  <article class="card card-featured">
-    <a class="card-media" href="#article">
-      <img class="card-img" alt="" loading="lazy">
-    </a>
-    <div class="card-body">
-      <p class="card-eyebrow"></p>
-      <h3 class="card-title"><a href="#article"></a></h3>
-      <p class="card-desc"></p>
-      <div class="card-meta">
-        <img class="avatar avatar-xs" alt="">
-        <span class="meta-author"></span>
-        <span class="meta-dot" aria-hidden="true">&middot;</span>
-        <span class="meta-read"></span>
-        <span class="meta-dot" aria-hidden="true">&middot;</span>
-        <span class="meta-date"></span>
-      </div>
-    </div>
-  </article>
-</template>
-
-<template id="tpl-article-row">
-  <article class="card card-row">
-    <div class="card-body">
-      <div class="card-meta card-meta-top">
-        <img class="avatar avatar-xs" alt="">
-        <span class="meta-author"></span>
-        <span class="meta-dot" aria-hidden="true">&middot;</span>
-        <span class="meta-date"></span>
-      </div>
-      <h3 class="card-title"><a href="#article"></a></h3>
-      <p class="card-desc"></p>
-      <div class="card-footer">
-        <p class="card-eyebrow"></p>
-        <span class="meta-dot" aria-hidden="true">&middot;</span>
-        <span class="meta-read"></span>
-        <div class="card-actions">
-          <button class="icon-btn bookmark-btn" type="button" aria-pressed="false" aria-label="Bookmark this story">
-            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
-          </button>
-          <button class="icon-btn more-btn" type="button" aria-label="More options">
-            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
-          </button>
-        </div>
-      </div>
-    </div>
-    <a class="card-media card-media-side" href="#article">
-      <img class="card-img" alt="" loading="lazy">
-    </a>
-  </article>
-</template>
-
-<template id="tpl-trending-item">
-  <li class="trending-item">
-    <span class="trending-rank"></span>
-    <div class="trending-content">
-      <div class="trending-author-row">
-        <img class="avatar avatar-xxs" alt="">
-        <span class="meta-author"></span>
-      </div>
-      <h4 class="trending-title"><a href="#article"></a></h4>
-    </div>
-  </li>
-</template>
-
-<template id="tpl-author-item">
-  <li class="author-item">
-    <img class="avatar avatar-sm" alt="">
-    <div class="author-info">
-      <span class="author-name"></span>
-      <span class="author-bio"></span>
-    </div>
-    <button class="btn btn-outline btn-sm follow-btn" type="button">Follow</button>
-  </li>
-</template>
-
-<!-- Auth modal (Sign Up / Sign In) -->
+<!-- ============ AUTH MODAL ============ -->
 <div class="modal-overlay" id="auth-modal" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title">
     <div class="modal-header">
       <h2 id="auth-modal-title">Sign In</h2>
       <button type="button" class="icon-btn modal-close" id="auth-modal-close" aria-label="Close">
-        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
       </button>
     </div>
     <form id="auth-form" novalidate>
@@ -301,13 +185,13 @@
   </div>
 </div>
 
-<!-- Write / create-article modal -->
+<!-- ============ WRITE MODAL ============ -->
 <div class="modal-overlay" id="write-modal" hidden>
   <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="write-modal-title">
     <div class="modal-header">
       <h2 id="write-modal-title">Write a story</h2>
       <button type="button" class="icon-btn modal-close" id="write-modal-close" aria-label="Close">
-        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
       </button>
     </div>
     <form id="write-form" novalidate>
@@ -331,6 +215,9 @@
   </div>
 </div>
 
+<!-- Scripts: router first, then pages, then main script -->
+<script src="router.js"></script>
+<script src="pages.js"></script>
 <script src="script.js"></script>
 </body>
 </html>

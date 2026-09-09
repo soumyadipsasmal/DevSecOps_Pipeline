@@ -1,0 +1,171 @@
+[1mdiff --git a/app/server.js b/app/server.js[m
+[1mindex 09f8964..f5922cf 100644[m
+[1m--- a/app/server.js[m
+[1m+++ b/app/server.js[m
+[36m@@ -193,7 +193,7 @@[m [mfunction authenticateToken(req, res, next) {[m
+ [m
+ app.post("/api/articles", authenticateToken, async (req, res) => {[m
+     try {[m
+[31m-        const { title, content, cover_image } = req.body;[m
+[32m+[m[32m        const { title, content, cover_image, category_id } = req.body;[m
+ [m
+         // Validate input[m
+         if (!title || !content) {[m
+[36m@@ -212,15 +212,16 @@[m [mapp.post("/api/articles", authenticateToken, async (req, res) => {[m
+         // Save article[m
+         const result = await pool.query([m
+             `INSERT INTO articles[m
+[31m-            (author_id, title, slug, content, cover_image)[m
+[31m-            VALUES ($1, $2, $3, $4, $5)[m
+[31m-            RETURNING id, author_id, title, slug, content, cover_image, created_at`,[m
+[32m+[m[32m            (author_id, title, slug, content, cover_image, category_id)[m
+[32m+[m[32m            VALUES ($1, $2, $3, $4, $5, $6)[m
+[32m+[m[32m            RETURNING id, author_id, title, slug, content, cover_image, category_id, created_at`,[m
+             [[m
+                 req.user.userId,[m
+                 title,[m
+                 slug,[m
+                 content,[m
+[31m-                cover_image || null[m
+[32m+[m[32m                cover_image || null,[m
+[32m+[m[32m                category_id || null[m
+             ][m
+         );[m
+ [m
+[36m@@ -237,37 +238,126 @@[m [mapp.post("/api/articles", authenticateToken, async (req, res) => {[m
+         });[m
+     }[m
+ });[m
+[32m+[m[32m// ===============================[m
+[32m+[m[32m// GET CATEGORIES[m
+[32m+[m[32m// ===============================[m
+[32m+[m
+[32m+[m[32mapp.get("/api/categories", async (req, res) => {[m
+[32m+[m[32m    try {[m
+[32m+[m[32m        const result = await pool.query([m
+[32m+[m[32m            "SELECT id, name, slug FROM categories ORDER BY display_order ASC, name ASC"[m
+[32m+[m[32m        );[m
+[32m+[m[32m        res.json({ categories: result.rows });[m
+[32m+[m[32m    } catch (error) {[m
+[32m+[m[32m        console.error("Get categories error:", error);[m
+[32m+[m[32m        res.json({ categories: [] });[m
+[32m+[m[32m    }[m
+[32m+[m[32m});[m
+[32m+[m
+ // ===============================[m
+ // GET ALL ARTICLES[m
+ // ===============================[m
+ [m
+ app.get("/api/articles", async (req, res) => {[m
+     try {[m
+[31m-        const result = await pool.query(`[m
+[32m+[m[32m        const { search, category, trending } = req.query;[m
+[32m+[m
+[32m+[m[32m        let query = `[m
+             SELECT[m
+                 articles.id,[m
+                 articles.title,[m
+                 articles.slug,[m
+                 articles.content,[m
+[32m+[m[32m                LEFT(articles.content, 200) AS excerpt,[m
+                 articles.cover_image,[m
+[32m+[m[32m                articles.is_featured,[m
+[32m+[m[32m                articles.is_trending,[m
+[32m+[m[32m                articles.status,[m
+[32m+[m[32m                articles.published_at,[m
+                 articles.created_at,[m
+                 users.id AS author_id,[m
+[31m-                users.username AS author[m
+[32m+[m[32m                users.username AS author_username,[m
+[32m+[m[32m                users.avatar_url AS author_avatar,[m
+[32m+[m[32m                users.bio AS author_bio,[m
+[32m+[m[32m                categories.name AS category_name,[m
+[32m+[m[32m                categories.slug AS category_slug[m
+             FROM articles[m
+             JOIN users ON articles.author_id = users.id[m
+[31m-            ORDER BY articles.created_at DESC[m
+[31m-        `);[m
+[32m+[m[32m            LEFT JOIN categories ON articles.category_id = categories.id[m
+[32m+[m[32m        `;[m
+ [m
+[31m-        res.json({[m
+[31m-            articles: result.rows[m
+[31m-        });[m
+[32m+[m[32m        const conditions = [];[m
+[32m+[m[32m        const params = [];[m
+[32m+[m
+[32m+[m[32m        if (search) {[m
+[32m+[m[32m            params.push(`%${search}%`);[m
+[32m+[m[32m            conditions.push(`(articles.title ILIKE $${params.length} OR articles.content ILIKE $${params.length})`);[m
+[32m+[m[32m        }[m
+[32m+[m
+[32m+[m[32m        if (category) {[m
+[32m+[m[32m            params.push(category);[m
+[32m+[m[32m            conditions.push(`categories.slug = $${params.length}`);[m
+[32m+[m[32m        }[m
+[32m+[m
+[32m+[m[32m        if (trending === "true") {[m
+[32m+[m[32m            conditions.push(`articles.is_trending = true`);[m
+[32m+[m[32m        }[m
+[32m+[m
+[32m+[m[32m        if (conditions.length > 0) {[m
+[32m+[m[32m            query += " WHERE " + conditions.join(" AND ");[m
+[32m+[m[32m        }[m
+[32m+[m
+[32m+[m[32m        query += " ORDER BY articles.created_at DESC LIMIT 50";[m
+[32m+[m
+[32m+[m[32m        const result = await pool.query(query, params);[m
+[32m+[m[32m        res.json({ articles: result.rows });[m
+ [m
+     } catch (error) {[m
+         console.error("Get articles error:", error);[m
+[32m+[m[32m        res.status(500).json({ error: "Internal server error" });[m
+[32m+[m[32m    }[m
+[32m+[m[32m});[m
+ [m
+[31m-        res.status(500).json({[m
+[31m-            error: "Internal server error"[m
+[31m-        });[m
+[32m+[m[32m// ===============================[m
+[32m+[m[32m// GET SINGLE ARTICLE[m
+[32m+[m[32m// ===============================[m
+[32m+[m
+[32m+[m[32mapp.get("/api/articles/:id", async (req, res) => {[m
+[32m+[m[32m    try {[m
+[32m+[m[32m        const { id } = req.params;[m
+[32m+[m[32m        const result = await pool.query(`[m
+[32m+[m[32m            SELECT[m
+[32m+[m[32m                articles.id,[m
+[32m+[m[32m                articles.title,[m
+[32m+[m[32m                articles.slug,[m
+[32m+[m[32m                articles.content,[m
+[32m+[m[32m                articles.cover_image,[m
+[32m+[m[32m                articles.is_featured,[m
+[32m+[m[32m                articles.is_trending,[m
+[32m+[m[32m                articles.status,[m
+[32m+[m[32m                articles.published_at,[m
+[32m+[m[32m                articles.created_at,[m
+[32m+[m[32m                users.id AS author_id,[m
+[32m+[m[32m                users.username AS author_username,[m
+[32m+[m[32m                users.avatar_url AS author_avatar,[m
+[32m+[m[32m                users.bio AS author_bio,[m
+[32m+[m[32m                categories.name AS category_name,[m
+[32m+[m[32m                categories.slug AS category_slug[m
+[32m+[m[32m            FROM articles[m
+[32m+[m[32m            JOIN users ON articles.author_id = users.id[m
+[32m+[m[32m            LEFT JOIN categories ON articles.category_id = categories.id[m
+[32m+[m[32m            WHERE articles.id = $1[m
+[32m+[m[32m        `, [id]);[m
+[32m+[m
+[32m+[m[32m        if (result.rows.length === 0) {[m
+[32m+[m[32m            return res.status(404).json({ error: "Article not found" });[m
+[32m+[m[32m        }[m
+[32m+[m
+[32m+[m[32m        res.json(result.rows[0]);[m
+[32m+[m
+[32m+[m[32m    } catch (error) {[m
+[32m+[m[32m        console.error("Get article error:", error);[m
+[32m+[m[32m        res.status(500).json({ error: "Internal server error" });[m
+     }[m
+ });[m
+ // ===============================[m
