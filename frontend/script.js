@@ -56,6 +56,43 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* Topic nav (rendered from GET /api/categories)                       */
+  /* ------------------------------------------------------------------ */
+  async function renderTopicNav() {
+    const list = $("#topic-list");
+    if (!list) return;
+
+    try {
+      const res = await fetch("/api/categories");
+      if (!res.ok) return;
+      const { categories } = await res.json();
+
+      list.querySelectorAll("li:not(:first-child)").forEach(li => li.remove());
+
+      categories.forEach(c => {
+        const li = document.createElement("li");
+        const a = document.createElement("a");
+        a.className = "topic-chip";
+        a.href = `#/category/${c.slug}`;
+        a.textContent = c.name;
+        li.appendChild(a);
+        list.appendChild(li);
+      });
+    } catch (e) {
+      console.error("Failed to load topics:", e);
+    }
+  }
+
+  function highlightActiveTopic() {
+    const list = $("#topic-list");
+    if (!list) return;
+    const hash = window.location.hash;
+    $$(".topic-chip", list).forEach(chip => {
+      chip.classList.toggle("is-active", chip.getAttribute("href") === hash);
+    });
+  }
+
+  /* ------------------------------------------------------------------ */
   /* Auth modal                                                         */
   /* ------------------------------------------------------------------ */
   const authModal = $("#auth-modal");
@@ -343,8 +380,13 @@
   /* ------------------------------------------------------------------ */
   document.addEventListener("DOMContentLoaded", () => {
     updateNav();
+    renderTopicNav();
     Router.init();
     highlightActiveNav();
-    window.addEventListener("hashchange", highlightActiveNav);
+    highlightActiveTopic();
+    window.addEventListener("hashchange", () => {
+      highlightActiveNav();
+      highlightActiveTopic();
+    });
   });
 })();

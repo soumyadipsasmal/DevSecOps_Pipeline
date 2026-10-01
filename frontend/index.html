@@ -71,6 +71,15 @@
       <span></span><span></span><span></span>
     </button>
   </div>
+
+  <!-- TOPIC NAV: "For You" links back to the homepage; every other chip is
+       rendered by script.js from GET /api/categories and navigates to
+       #/category/<slug>. -->
+  <nav class="topic-nav" aria-label="Topics">
+    <ul id="topic-list">
+      <li><a class="topic-chip" href="#/">For You</a></li>
+    </ul>
+  </nav>
 </header>
 
 <!-- Mobile drawer -->

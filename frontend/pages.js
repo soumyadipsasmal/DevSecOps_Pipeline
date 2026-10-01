@@ -373,6 +373,81 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* Category Page                                                       */
+  /* ------------------------------------------------------------------ */
+  async function renderCategory(params) {
+    const slug = params && params.slug;
+    if (!slug) return renderHome();
+
+    showLoading("Loading stories...");
+    try {
+      const [catRes, artRes] = await Promise.all([
+        fetch("/api/categories"),
+        fetch(`/api/articles?category=${encodeURIComponent(slug)}`)
+      ]);
+      if (!artRes.ok) throw new Error("API error");
+
+      const catData = catRes.ok ? await catRes.json() : { categories: [] };
+      const cat = catData.categories.find(c => c.slug === slug);
+      if (!cat) {
+        return renderApp(`
+          <div class="page-container">
+            <div class="empty-state">
+              <p class="empty-state-title">This category doesn't exist.</p>
+              <a class="btn btn-primary" href="#/">Back to home</a>
+            </div>
+          </div>
+        `);
+      }
+
+      const data = await artRes.json();
+      const articles = data.articles.map(a => ({
+        id: a.id, title: a.title, excerpt: a.excerpt || a.content,
+        author: { name: a.author_username, avatar: a.author_avatar || DEFAULT_AVATAR },
+        image: a.cover_image || DEFAULT_COVER,
+        date: formatDate(a.published_at || a.created_at), readTime: readMins(a.content)
+      }));
+
+      renderApp(`
+        <div class="page-container">
+          <a class="category-back-link" href="#/">&larr; All stories</a>
+          <div class="page-header">
+            <h1 class="page-title">${cat.name}</h1>
+            ${cat.description ? `<p class="page-subtitle">${cat.description}</p>` : ""}
+          </div>
+          ${articles.length ? `
+            <div class="news-grid">
+              ${articles.map(a => `
+                <article class="news-card">
+                  <a class="news-card-media" href="#/stories/${a.id}"><img src="${a.image}" alt="${a.title}"></a>
+                  <div class="news-card-body">
+                    <span class="news-card-date">${a.date}</span>
+                    <h3 class="news-card-title"><a href="#/stories/${a.id}">${a.title}</a></h3>
+                    <p class="news-card-excerpt">${a.excerpt}</p>
+                    <div class="news-card-meta">
+                      <img class="avatar avatar-xxs" src="${a.author.avatar}" alt="${a.author.name}">
+                      <span class="meta-author">${a.author.name}</span>
+                      <span class="meta-dot">&middot;</span>
+                      <span>${a.readTime} min read</span>
+                    </div>
+                  </div>
+                </article>
+              `).join("")}
+            </div>
+          ` : `
+            <div class="empty-state">
+              <p class="empty-state-title">Nothing here yet.</p>
+              <p>No stories in ${cat.name} so far.</p>
+            </div>
+          `}
+        </div>
+      `);
+    } catch (e) {
+      showError("Failed to load this category.");
+    }
+  }
+
+  /* ------------------------------------------------------------------ */
   /* Portfolio Page                                                     */
   /* ------------------------------------------------------------------ */
   function renderPortfolio() {
@@ -860,7 +935,7 @@
   window.KaliNovaPages = {
     renderHome, renderStories, renderStoryDetail, renderGuestPosts,
     renderNews, renderPortfolio, renderMarketplace, renderCV, renderSearch,
-    renderDashboard, renderProfile, renderSettings,
+    renderDashboard, renderProfile, renderSettings, renderCategory,
     renderGuestPostModal, renderCreateListingModal
   };
 
@@ -869,6 +944,7 @@
   Router.register("/stories/:id", renderStoryDetail);
   Router.register("/guest-posts", renderGuestPosts);
   Router.register("/news", renderNews);
+  Router.register("/category/:slug", renderCategory);
   Router.register("/portfolio", renderPortfolio);
   Router.register("/marketplace", renderMarketplace);
   Router.register("/cv", renderCV);

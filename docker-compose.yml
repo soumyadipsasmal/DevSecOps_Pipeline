@@ -1,0 +1,52 @@
+services:
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: devsecops-app
+
+    ports:
+      - "3007:3007"
+
+    environment:
+      PORT: 3007
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: medium_clone
+      DB_USER: medium_user
+      DB_PASSWORD: medium_pass
+      JWT_SECRET: devsecops-development-secret
+
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+
+    container_name: devsecops-compose-db
+
+    environment:
+      POSTGRES_DB: medium_clone
+      POSTGRES_USER: medium_user
+      POSTGRES_PASSWORD: medium_pass
+
+    ports:
+        - "5434:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./database/seed-categories.sql:/docker-entrypoint-initdb.d/02-seed-categories.sql:ro
+      - ./database/seed.sql:/docker-entrypoint-initdb.d/03-seed.sql:ro
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U medium_user -d medium_clone"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:
