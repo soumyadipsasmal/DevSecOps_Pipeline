@@ -78,6 +78,19 @@
         li.appendChild(a);
         list.appendChild(li);
       });
+
+      const footerList = $("#footer-topic-list");
+      if (footerList) {
+        footerList.querySelectorAll("li:not(:first-child)").forEach(li => li.remove());
+        categories.forEach(c => {
+          const li = document.createElement("li");
+          const a = document.createElement("a");
+          a.href = `#/category/${c.slug}`;
+          a.textContent = c.name;
+          li.appendChild(a);
+          footerList.appendChild(li);
+        });
+      }
     } catch (e) {
       console.error("Failed to load topics:", e);
     }

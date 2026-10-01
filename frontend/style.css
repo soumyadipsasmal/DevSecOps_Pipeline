@@ -1070,6 +1070,14 @@ input:focus-visible,
   line-height: 1.75;
 }
 .article-detail-content p { margin-bottom: 20px; }
+.article-detail-content h2 {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 36px 0 14px;
+  color: var(--body-text-light);
+}
 .article-detail-footer {
   margin-top: 40px;
   padding-top: 24px;

@@ -47,6 +47,45 @@
     return Math.max(1, Math.ceil(content.trim().split(/\s+/).length / 200));
   }
 
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  /* Renders plain-text article bodies that may use "# " / "## " headings
+     and blank lines between paragraphs. All text is escaped first. */
+  function formatContent(content) {
+    if (!content) return "";
+    const blocks = String(content).replace(/\r\n/g, "\n").split(/\n{2,}/);
+    return blocks
+      .map(block => {
+        const lines = block.split("\n").map(l => l.trim()).filter(Boolean);
+        if (!lines.length) return "";
+        const heading = lines[0].match(/^#{1,6}\s+(.*)$/);
+        if (heading && lines.length === 1) {
+          return `<h2>${escapeHtml(heading[1].trim())}</h2>`;
+        }
+        return `<p>${lines.map(l => escapeHtml(l)).join("<br>")}</p>`;
+      })
+      .filter(Boolean)
+      .join("");
+  }
+
+  function makeExcerpt(content, max = 200) {
+    const text = String(content || "")
+      .replace(/^#{1,6}\s+/gm, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (text.length <= max) return escapeHtml(text);
+    const clipped = text.slice(0, max);
+    const cut = clipped.lastIndexOf(" ");
+    return escapeHtml((cut > 0 ? clipped.slice(0, cut) : clipped).replace(/[,;:.]$/, "")) + "…";
+  }
+
   /* ------------------------------------------------------------------ */
   /* Home / For You                                                     */
   /* ------------------------------------------------------------------ */
@@ -62,7 +101,7 @@
       const catData = await catRes.json();
 
       const articles = artData.articles.map(a => ({
-        id: a.id, title: a.title, excerpt: a.excerpt || a.content,
+        id: a.id, title: a.title, excerpt: makeExcerpt(a.content),
         author: { id: a.author_id, name: a.author_username, avatar: a.author_avatar || DEFAULT_AVATAR },
         category: a.category_name || "General", image: a.cover_image || DEFAULT_COVER,
         featured: Boolean(a.is_featured), date: formatDate(a.published_at || a.created_at),
@@ -177,7 +216,7 @@
       if (!res.ok) throw new Error("API error");
       const data = await res.json();
       const articles = data.articles.map(a => ({
-        id: a.id, title: a.title, excerpt: a.excerpt || a.content,
+        id: a.id, title: a.title, excerpt: makeExcerpt(a.content),
         author: { id: a.author_id, name: a.author_username, avatar: a.author_avatar || DEFAULT_AVATAR },
         category: a.category_name || "General", image: a.cover_image || DEFAULT_COVER,
         featured: Boolean(a.is_featured), date: formatDate(a.published_at || a.created_at),
@@ -248,7 +287,7 @@
             </div>
           </div>
           <img class="article-detail-cover" src="${article.image}" alt="${article.title}">
-          <div class="article-detail-content">${article.content.split("\n").map(p => `<p>${p}</p>`).join("")}</div>
+          <div class="article-detail-content">${formatContent(article.content)}</div>
           <div class="article-detail-footer">
             <div class="article-actions">
               <button class="btn btn-outline like-btn" data-id="${article.id}">&#9825; Like</button>
@@ -276,7 +315,7 @@
       if (!res.ok) throw new Error("API error");
       const data = await res.json();
       const posts = data.articles.slice(0, 6).map(a => ({
-        id: a.id, title: a.title, excerpt: a.excerpt || a.content.substring(0, 150),
+        id: a.id, title: a.title, excerpt: makeExcerpt(a.content, 150),
         author: { name: a.author_username, avatar: a.author_avatar || DEFAULT_AVATAR },
         date: formatDate(a.published_at || a.created_at),
         status: a.status || "published"
@@ -335,7 +374,7 @@
       if (!res.ok) throw new Error("API error");
       const data = await res.json();
       const articles = data.articles.slice(0, 8).map(a => ({
-        id: a.id, title: a.title, excerpt: a.excerpt || a.content.substring(0, 200),
+        id: a.id, title: a.title, excerpt: makeExcerpt(a.content),
         author: { name: a.author_username, avatar: a.author_avatar || DEFAULT_AVATAR },
         image: a.cover_image || DEFAULT_COVER,
         date: formatDate(a.published_at || a.created_at), readTime: readMins(a.content)
@@ -402,7 +441,7 @@
 
       const data = await artRes.json();
       const articles = data.articles.map(a => ({
-        id: a.id, title: a.title, excerpt: a.excerpt || a.content,
+        id: a.id, title: a.title, excerpt: makeExcerpt(a.content),
         author: { name: a.author_username, avatar: a.author_avatar || DEFAULT_AVATAR },
         image: a.cover_image || DEFAULT_COVER,
         date: formatDate(a.published_at || a.created_at), readTime: readMins(a.content)
@@ -667,7 +706,7 @@
       if (!res.ok) throw new Error("API error");
       const data = await res.json();
       const articles = data.articles.map(a => ({
-        id: a.id, title: a.title, excerpt: a.excerpt || a.content.substring(0, 200),
+        id: a.id, title: a.title, excerpt: makeExcerpt(a.content),
         author: { name: a.author_username, avatar: a.author_avatar || DEFAULT_AVATAR },
         category: a.category_name || "General", date: formatDate(a.published_at || a.created_at),
         readTime: readMins(a.content)

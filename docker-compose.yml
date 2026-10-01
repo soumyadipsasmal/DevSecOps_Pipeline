@@ -41,6 +41,7 @@ services:
       - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
       - ./database/seed-categories.sql:/docker-entrypoint-initdb.d/02-seed-categories.sql:ro
       - ./database/seed.sql:/docker-entrypoint-initdb.d/03-seed.sql:ro
+      - ./database/seed-topics.sql:/docker-entrypoint-initdb.d/04-seed-topics.sql:ro
 
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U medium_user -d medium_clone"]
