@@ -12,7 +12,7 @@ SELECT
     NOW() - (seed.age_hours || ' hours')::INTERVAL
 FROM (
     VALUES
-        ('aarav', 'Bollywood: Movies, Stars and Stories That Keep India Entertained', 'bollywood-movies-stars-and-stories-that-keep-india-entertained',
+        ('kalinova', 'Bollywood: Movies, Stars and Stories That Keep India Entertained', 'bollywood-movies-stars-and-stories-that-keep-india-entertained',
          'Bollywood has always been more than just movies. For millions of people across India and around the world, Hindi cinema is a part of everyday entertainment, conversation, fashion, music and culture. From exciting new movie announcements to celebrity appearances, songs, trailers and behind-the-scenes stories, Bollywood continues to attract attention from audiences of every age.
 
 The Hindi film industry has changed a lot over the years. Earlier, audiences mainly depended on theatres, television and newspapers to follow their favourite actors and movies. Today, entertainment has become much faster. Social media, streaming platforms and online news have made it possible for fans to discover movie updates almost instantly.
@@ -54,7 +54,7 @@ Bollywood will continue to change with new actors, new directors, new storytelli
 For Kalinova, the Bollywood section can become a place where readers visit to discover what''s happening in Hindi cinema while also finding interesting stories behind the movies, stars and trends they already enjoy.',
          'https://images.unsplash.com/photo-1485846234645-a62644f84728?w=800&q=60', 'bollywood', 1),
 
-        ('rohan', 'Tollywood: Telugu Cinema, Stars, Stories and New Trends', 'tollywood-telugu-cinema-stars-stories-and-new-trends',
+        ('kalinova', 'Tollywood: Telugu Cinema, Stars, Stories and New Trends', 'tollywood-telugu-cinema-stars-stories-and-new-trends',
          'Tollywood has become one of the most widely discussed parts of Indian cinema. Telugu films have developed a large audience not only in Andhra Pradesh and Telangana but also across India and international markets. With powerful storytelling, large-scale productions, memorable music and talented performers, Telugu cinema has created a strong identity of its own.
 
 For many years, Telugu movies were mainly followed by regional audiences. Today, the situation is very different. Dubbed versions, subtitles, streaming platforms and social media have helped Telugu cinema reach viewers in many parts of the world.
@@ -110,7 +110,7 @@ Tollywood is changing quickly, and its audience is growing across different part
 From major releases to emerging filmmakers, there will always be something new happening in Tollywood.',
          'https://images.unsplash.com/photo-1500462918059-b1a0cb512f1d?w=800&q=60', 'tollywood', 2),
 
-        ('meera', 'Fashion Trends: Simple Style Ideas for Everyday Life', 'fashion-trends-simple-style-ideas-for-everyday-life',
+        ('kalinova', 'Fashion Trends: Simple Style Ideas for Everyday Life', 'fashion-trends-simple-style-ideas-for-everyday-life',
          'Fashion is constantly changing, but good style does not always mean following every new trend. The best fashion ideas are often the ones that are comfortable, practical and easy to make part of everyday life.
 
 From traditional Indian clothing to modern casual outfits, fashion gives people a way to express their personality. Social media, movies, celebrities and fashion designers all influence the way people dress, but individual comfort and personal preference remain important.
@@ -166,7 +166,7 @@ The content can remain simple and practical instead of making readers feel that 
 Fashion should be accessible, enjoyable and personal. Trends may come and go, but confidence, comfort and a style that feels natural can remain useful for much longer.',
          'https://images.unsplash.com/photo-1441984904996-e0b6ba687e04?w=800&q=60', 'fashion', 3),
 
-        ('diya', 'Latest News: The Stories Shaping Everyday Life', 'latest-news-the-stories-shaping-everyday-life',
+        ('kalinova', 'Latest News: The Stories Shaping Everyday Life', 'latest-news-the-stories-shaping-everyday-life',
          'News changes every day. A major event can happen in the morning and become old news by evening. With smartphones and social media, people now receive information faster than ever before.
 
 But speed is not the only thing that matters. Understanding what happened, where it happened and why it matters is equally important.
@@ -226,7 +226,7 @@ Good news content does not need complicated language. It needs clear information
 As Kalinova begins publishing, the Latest News section can become a place for readers to discover important developments while the other categories provide deeper stories around entertainment, lifestyle, nature and travel.',
          'https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=800&q=60', 'latest-news', 4),
 
-        ('kabir', 'Wildlife: Discovering India''s Amazing Natural World', 'wildlife-discovering-indias-amazing-natural-world',
+        ('kalinova', 'Wildlife: Discovering India''s Amazing Natural World', 'wildlife-discovering-indias-amazing-natural-world',
          'India is home to an incredible variety of wildlife and natural landscapes. From the Himalayan mountains to tropical forests, wetlands, grasslands and coastal ecosystems, the country supports many different species.
 
 Wildlife is not only about seeing animals in a national park. It is also about understanding forests, rivers, birds, insects, plants and the people who share these environments.
@@ -286,7 +286,7 @@ Nature is all around us, and understanding it can make travel and everyday life 
 India''s wildlife is one of its most valuable natural treasures. By sharing informative and engaging stories, Kalinova can help readers discover the animals, habitats and natural places that make the country so diverse.',
          'https://images.unsplash.com/photo-1474511320723-9a56873867b5?w=800&q=60', 'wildlife', 5),
 
-        ('anjali', 'Travel: Discover New Places, Experiences and Stories', 'travel-discover-new-places-experiences-and-stories',
+        ('kalinova', 'Travel: Discover New Places, Experiences and Stories', 'travel-discover-new-places-experiences-and-stories',
          'Travel is about much more than reaching a destination. It is about discovering new places, meeting people, trying different food and experiencing cultures that may be very different from our everyday surroundings.
 
 India offers an enormous variety of travel experiences. From mountains and beaches to historic cities, forests, villages and modern metropolitan destinations, there are places for almost every type of traveller.

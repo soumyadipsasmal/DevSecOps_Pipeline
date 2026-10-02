@@ -342,16 +342,30 @@ input:focus-visible,
   margin: 6px 0;
 }
 
-/* Topic nav */
+/* Topic nav — shares the single header row with the logo, so it takes the
+   remaining space and scrolls sideways rather than wrapping to a second bar. */
 .topic-nav {
-  border-top: 1px solid var(--border);
-  max-width: var(--content-max);
-  margin: 0 auto;
+  flex: 1;
+  min-width: 0;
+}
+
+/* About Us sits in the header row, outside the scrolling topic list, so it
+   stays visible while the topics scroll. */
+.about-chip {
+  flex-shrink: 0;
+  align-self: center;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.about-chip.is-active {
+  color: var(--accent-dark);
+  border-color: var(--accent);
+  background: var(--accent-tint);
 }
 .topic-nav ul {
   display: flex;
   gap: 4px;
-  padding: 8px 24px;
+  align-items: center;
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -711,7 +725,7 @@ input:focus-visible,
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--body-text-light);
+  color: #ffffff;
   margin-bottom: 16px;
 }
 .footer-links { display: flex; flex-direction: column; gap: 10px; }
@@ -755,6 +769,8 @@ input:focus-visible,
   .header-right .btn-text,
   .header-right .btn-ghost span { display: none; }
   .header-right { display: none; }
+  /* Topics move into the drawer on narrow screens so the logo keeps its row. */
+  .topic-nav { display: none; }
   .mobile-toggle { display: flex; }
   .header-inner { gap: 12px; }
   .logo-image { height: 28px; }
@@ -1656,4 +1672,128 @@ input:focus-visible,
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   * { transition-duration: 0.001ms !important; animation-duration: 0.001ms !important; }
+}
+
+/* ==========================================================================
+   About Us — founder story page
+   ========================================================================== */
+.about-page {
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: 40px 24px 72px;
+}
+
+.about-hero {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  padding: 32px 0 40px;
+  border-bottom: 1px solid var(--border);
+}
+.about-hero-avatar { flex-shrink: 0; }
+.founder-avatar-svg {
+  display: block;
+  width: 104px;
+  height: 104px;
+  border-radius: 50%;
+}
+.page-title-label {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+.about-hero-title {
+  font-family: var(--font-display);
+  font-size: 2.4rem;
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--ink);
+}
+.about-hero-role {
+  font-family: var(--font-mono);
+  font-size: 0.86rem;
+  color: var(--ink-soft);
+  margin: 10px 0 4px;
+}
+.about-hero-tagline {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 1.05rem;
+  color: var(--ink-muted);
+  margin-bottom: 18px;
+}
+
+.about-toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 22px 0;
+  border-bottom: 1px solid var(--border);
+}
+.about-toc a {
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  color: var(--ink-muted);
+  background: var(--paper-raised);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 5px 12px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.about-toc a:hover {
+  color: var(--accent-dark);
+  border-color: var(--accent);
+}
+
+.about-body {
+  max-width: 68ch;
+  margin: 0 auto;
+}
+.about-block { padding-top: 34px; }
+.about-block h2 {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--ink);
+  margin: 0 0 14px;
+}
+.about-block p {
+  color: var(--ink-soft);
+  font-size: 1.02rem;
+  line-height: 1.78;
+  margin-bottom: 18px;
+}
+
+.about-quote {
+  margin: 0 0 18px;
+  padding: 22px 24px;
+  background: var(--paper-raised);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 8px 8px 0;
+}
+.about-quote p {
+  font-family: var(--font-display);
+  font-size: 1.12rem;
+  line-height: 1.65;
+  color: var(--ink);
+  margin-bottom: 14px;
+}
+.about-signature {
+  font-style: normal;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+}
+
+@media (max-width: 720px) {
+  .about-page { padding: 28px 16px 56px; }
+  .about-hero { flex-direction: column; align-items: flex-start; gap: 18px; }
+  .about-hero-title { font-size: 1.9rem; }
+  .founder-avatar-svg { width: 84px; height: 84px; }
 }

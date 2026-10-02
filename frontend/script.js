@@ -1,6 +1,9 @@
 /**
  * KaliNova — Main SPA Controller
- * Handles auth, navigation, search, modals, and routing initialization.
+ * Handles navigation, topic menus, modals, and routing initialization.
+ *
+ * There are no user accounts: every article is published as the site author,
+ * so there is no session, sign-in or sign-out to manage.
  */
 (() => {
   "use strict";
@@ -8,51 +11,9 @@
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
-  /* ------------------------------------------------------------------ */
-  /* Session (JWT) storage                                              */
-  /* ------------------------------------------------------------------ */
-  const SESSION_KEY = "kalinova_session";
-
-  function getSession() {
-    try {
-      const raw = localStorage.getItem(SESSION_KEY);
-      return raw ? JSON.parse(raw) : null;
-    } catch { return null; }
-  }
-
-  function setSession(token, user) {
-    try {
-      localStorage.setItem(SESSION_KEY, JSON.stringify({ token, user }));
-    } catch (e) {
-      console.error("Failed to store session:", e);
-    }
-  }
-
-  function clearSession() {
-    try { localStorage.removeItem(SESSION_KEY); } catch {}
-  }
-
-  /* ------------------------------------------------------------------ */
-  /* Navigation UI updates                                              */
-  /* ------------------------------------------------------------------ */
-  function updateNav() {
-    const session = getSession();
-    const signedIn = Boolean(session && session.token);
-    const guestEls = $$("#signin-btn, #getstarted-btn, .mobile-auth-btn:not(.mobile-logout-btn)");
-    const authEls = $$(".mobile-auth-link, .mobile-logout-btn");
-
-    guestEls.forEach(el => { el.hidden = signedIn; });
-    authEls.forEach(el => { el.hidden = !signedIn; });
-
-    const userMenu = $("#user-menu");
-    if (userMenu) userMenu.hidden = !signedIn;
-  }
-
   function highlightActiveNav() {
-    const hash = window.location.hash;
-    $$(".nav-link", $(".header-right")).forEach(link => {
-      link.classList.toggle("is-active", link.getAttribute("href") === hash);
-    });
+    // The header-right nav was removed when the topics moved into the single
+    // header row, so there are no .nav-link elements left to highlight.
   }
 
   /* ------------------------------------------------------------------ */
@@ -69,6 +30,10 @@
 
       list.querySelectorAll("li:not(:first-child)").forEach(li => li.remove());
 
+      // The drawer carries the same topics on narrow screens, where the
+      // header row is hidden in favour of the hamburger.
+      const mobileList = $("#mobile-topic-list");
+
       categories.forEach(c => {
         const li = document.createElement("li");
         const a = document.createElement("a");
@@ -77,6 +42,16 @@
         a.textContent = c.name;
         li.appendChild(a);
         list.appendChild(li);
+
+        if (mobileList) {
+          const mli = document.createElement("li");
+          const ma = document.createElement("a");
+          ma.className = "mobile-nav-link";
+          ma.href = `#/category/${c.slug}`;
+          ma.textContent = c.name;
+          mli.appendChild(ma);
+          mobileList.appendChild(mli);
+        }
       });
 
       const footerList = $("#footer-topic-list");
@@ -97,96 +72,15 @@
   }
 
   function highlightActiveTopic() {
-    const list = $("#topic-list");
-    if (!list) return;
     const hash = window.location.hash;
-    $$(".topic-chip", list).forEach(chip => {
-      chip.classList.toggle("is-active", chip.getAttribute("href") === hash);
-    });
-  }
 
-  /* ------------------------------------------------------------------ */
-  /* Auth modal                                                         */
-  /* ------------------------------------------------------------------ */
-  const authModal = $("#auth-modal");
-  const authForm = $("#auth-form");
-  const authError = $("#auth-error");
-  const authUsernameField = $("#auth-username-field");
-  const authUsernameInput = $("#auth-username");
-  const authSubmitBtn = $("#auth-submit-btn");
-  const authSwitchBtn = $("#auth-switch-btn");
-  const authSwitchText = $("#auth-switch-text");
-  const authModalTitle = $("#auth-modal-title");
-
-  let authMode = "signin";
-
-  function setAuthMode(mode) {
-    authMode = mode;
-    authError.hidden = true;
-    if (mode === "signup") {
-      authModalTitle.textContent = "Create your account";
-      authUsernameField.hidden = false;
-      authUsernameInput.required = true;
-      authSubmitBtn.textContent = "Sign Up";
-      authSwitchText.textContent = "Already have an account?";
-      authSwitchBtn.textContent = "Sign in";
-    } else {
-      authModalTitle.textContent = "Sign In";
-      authUsernameField.hidden = true;
-      authUsernameInput.required = false;
-      authSubmitBtn.textContent = "Sign In";
-      authSwitchText.textContent = "New to KaliNova?";
-      authSwitchBtn.textContent = "Create an account";
-    }
-  }
-
-  function openAuthModal(mode) {
-    setAuthMode(mode || "signin");
-    authForm.reset();
-    authError.hidden = true;
-    authModal.hidden = false;
-  }
-
-  function closeAuthModal() { authModal.hidden = true; }
-
-  $("#auth-modal-close").addEventListener("click", closeAuthModal);
-  authSwitchBtn.addEventListener("click", () => setAuthMode(authMode === "signin" ? "signup" : "signin"));
-  authModal.addEventListener("click", (e) => { if (e.target === authModal) closeAuthModal(); });
-
-  authForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    authError.hidden = true;
-    const email = $("#auth-email").value.trim();
-    const password = $("#auth-password").value;
-    authSubmitBtn.disabled = true;
-    try {
-      if (authMode === "signup") {
-        const username = authUsernameInput.value.trim();
-        const registerRes = await fetch("/api/auth/register", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username, email, password }),
-        });
-        const registerData = await registerRes.json();
-        if (!registerRes.ok) throw new Error(registerData.error || "Registration failed");
-      }
-      const loginRes = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+    const list = $("#topic-list");
+    if (list) {
+      $$(".topic-chip", list).forEach(chip => {
+        chip.classList.toggle("is-active", chip.getAttribute("href") === hash);
       });
-      const loginData = await loginRes.json();
-      if (!loginRes.ok) throw new Error(loginData.error || "Sign in failed");
-      setSession(loginData.token, loginData.user);
-      updateNav();
-      closeAuthModal();
-    } catch (error) {
-      authError.textContent = error.message;
-      authError.hidden = false;
-    } finally {
-      authSubmitBtn.disabled = false;
     }
-  });
+  }
 
   /* ------------------------------------------------------------------ */
   /* Write modal                                                        */
@@ -197,9 +91,6 @@
   const writeSubmitBtn = $(".btn-primary", writeForm);
 
   async function openWriteModal() {
-    const session = getSession();
-    if (!session || !session.token) { openAuthModal("signin"); return; }
-
     const select = $("#write-category");
     select.innerHTML = '<option value="">No category</option>';
     try {
@@ -228,22 +119,26 @@
   writeForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     writeError.hidden = true;
-    const session = getSession();
-    if (!session || !session.token) { closeWriteModal(); openAuthModal("signin"); return; }
     const title = $("#write-title").value.trim();
     const content = $("#write-content").value.trim();
     const categoryId = $("#write-category").value;
+    if (!title || !content) {
+      writeError.textContent = "Title and content are required";
+      writeError.hidden = false;
+      return;
+    }
     writeSubmitBtn.disabled = true;
     try {
       const response = await fetch("/api/articles", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.token}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title, content, category_id: categoryId || undefined }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not save the article");
       closeWriteModal();
-      alert("Draft saved. It will appear publicly once an admin reviews and publishes it.");
+      alert("Published as KaliNova.");
+      Router.navigate("#/");
     } catch (error) {
       writeError.textContent = error.message;
       writeError.hidden = false;
@@ -251,33 +146,6 @@
       writeSubmitBtn.disabled = false;
     }
   });
-
-  /* ------------------------------------------------------------------ */
-  /* User menu dropdown                                                 */
-  /* ------------------------------------------------------------------ */
-  const userMenuBtn = $("#user-menu-btn");
-  const userMenuPanel = $("#user-menu-panel");
-
-  if (userMenuBtn) {
-    userMenuBtn.addEventListener("click", () => {
-      const expanded = userMenuBtn.getAttribute("aria-expanded") === "true";
-      userMenuBtn.setAttribute("aria-expanded", String(!expanded));
-      userMenuPanel.hidden = expanded;
-    });
-    document.addEventListener("click", (e) => {
-      if (!e.target.closest("#user-menu") && !userMenuPanel.hidden) {
-        userMenuPanel.hidden = true;
-        userMenuBtn.setAttribute("aria-expanded", "false");
-      }
-    });
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && !userMenuPanel.hidden) {
-        userMenuPanel.hidden = true;
-        userMenuBtn.setAttribute("aria-expanded", "false");
-        userMenuBtn.focus();
-      }
-    });
-  }
 
   /* ------------------------------------------------------------------ */
   /* Mobile drawer                                                      */
@@ -302,29 +170,9 @@
   });
 
   /* ------------------------------------------------------------------ */
-  /* Logout                                                             */
-  /* ------------------------------------------------------------------ */
-  function handleLogout() {
-    clearSession();
-    updateNav();
-    if (userMenuPanel) {
-      userMenuPanel.hidden = true;
-      userMenuBtn.setAttribute("aria-expanded", "false");
-    }
-    Router.navigate("#/");
-  }
-
-  const logoutBtn = $("#logout-btn");
-  if (logoutBtn) logoutBtn.addEventListener("click", handleLogout);
-
-  const mobileLogoutBtn = $("#mobile-logout-btn");
-  if (mobileLogoutBtn) mobileLogoutBtn.addEventListener("click", handleLogout);
-
-  /* ------------------------------------------------------------------ */
   /* Custom event listeners (for page components)                       */
   /* ------------------------------------------------------------------ */
   document.addEventListener("open-write", () => openWriteModal());
-  document.addEventListener("open-auth", (e) => openAuthModal(e.detail || "signin"));
   document.addEventListener("open-guest-post", () => {
     if (KaliNovaPages.renderGuestPostModal) KaliNovaPages.renderGuestPostModal();
   });
@@ -336,7 +184,6 @@
   /* Init                                                               */
   /* ------------------------------------------------------------------ */
   document.addEventListener("DOMContentLoaded", () => {
-    updateNav();
     renderTopicNav();
     Router.init();
     highlightActiveNav();

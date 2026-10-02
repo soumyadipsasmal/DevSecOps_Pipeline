@@ -11,17 +11,9 @@
   function $(sel, root = document) { return root.querySelector(sel); }
   function $$(sel, root = document) { return Array.from(root.querySelectorAll(sel)); }
 
-  function getSession() {
-    try {
-      const raw = localStorage.getItem("kalinova_session");
-      return raw ? JSON.parse(raw) : null;
-    } catch { return null; }
-  }
-
-  function isLoggedIn() {
-    const s = getSession();
-    return Boolean(s && s.token);
-  }
+  // There are no user accounts. The site author owns the profile, dashboard
+  // and settings views, so those always render without a signed-in check.
+  function isLoggedIn() { return true; }
 
   function renderApp(content) {
     const app = $("#app");
@@ -496,7 +488,7 @@
           <div class="page-header">
             <h1 class="page-title">Portfolio Builder</h1>
             <p class="page-subtitle">Create your professional portfolio and share it with the world</p>
-            <button class="btn btn-primary" onclick="document.dispatchEvent(new CustomEvent('open-auth', {detail:'signup'}))">Get Started</button>
+            <button class="btn btn-primary" onclick="document.dispatchEvent(new CustomEvent('open-write'))">Write a Story</button>
           </div>
           <div class="portfolio-features">
             <div class="portfolio-feature">
@@ -606,7 +598,7 @@
           <div class="page-header">
             <h1 class="page-title">CV / Resume</h1>
             <p class="page-subtitle">Create a professional CV and share it with employers</p>
-            <button class="btn btn-primary" onclick="document.dispatchEvent(new CustomEvent('open-auth', {detail:'signup'}))">Get Started</button>
+            <button class="btn btn-primary" onclick="document.dispatchEvent(new CustomEvent('open-write'))">Write a Story</button>
           </div>
         </div>
       `);
@@ -732,18 +724,6 @@
   /* Dashboard Page (authenticated)                                     */
   /* ------------------------------------------------------------------ */
   function renderDashboard() {
-    if (!isLoggedIn()) {
-      renderApp(`
-        <div class="page-container">
-          <div class="page-header">
-            <h1 class="page-title">Dashboard</h1>
-            <p class="page-subtitle">Sign in to access your dashboard</p>
-            <button class="btn btn-primary" onclick="document.dispatchEvent(new CustomEvent('open-auth', {detail:'signin'}))">Sign In</button>
-          </div>
-        </div>
-      `);
-      return;
-    }
 
     const session = getSession();
     const user = session.user || {};
@@ -969,12 +949,506 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* About Us — founder story                                           */
+  /* ------------------------------------------------------------------ */
+
+  // Monogram avatar. Inline SVG rather than a photo file, so the page has
+  // no external image dependency.
+  const FOUNDER_MONOGRAM = `
+    <svg class="founder-avatar-svg" viewBox="0 0 96 96" role="img" aria-label="Soumyadip Sasmal">
+      <defs>
+        <linearGradient id="founderGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#7c3aed"/>
+          <stop offset="100%" stop-color="#db2777"/>
+        </linearGradient>
+      </defs>
+      <circle cx="48" cy="48" r="48" fill="url(#founderGrad)"/>
+      <text x="48" y="48" text-anchor="middle" dominant-baseline="central"
+            font-family="var(--font-display), Georgia, serif" font-size="36"
+            font-weight="600" fill="#ffffff" letter-spacing="1">SS</text>
+    </svg>`;
+
+  const ABOUT_SECTIONS = [
+    {
+      heading: "About the Founder",
+      body: `Soumyadip Sasmal — Founder & Entrepreneur, KaliNova
+
+Every journey begins somewhere.
+
+Sometimes it begins with a dream. Sometimes with a problem that needs to be solved. And sometimes, it begins with a simple desire to create something of your own.
+
+For Soumyadip Sasmal, the journey toward entrepreneurship began with curiosity, ambition, and a strong desire to build a future on his own terms.
+
+Today, he is the founder of KaliNova, a company created from his vision of building something meaningful, independent, and capable of growing beyond a single idea.
+
+KaliNova is not simply a company for Soumyadip. It represents a journey — a journey of learning, experimentation, persistence, responsibility, and the belief that a small idea can eventually become something much larger.`
+    },
+    {
+      heading: "The Person Behind KaliNova",
+      body: `Soumyadip's story is not one of overnight success.
+
+It is a story of gradually discovering what he wanted from life and having the courage to pursue it.
+
+Like many young people beginning their careers, he started by focusing on education and developing himself professionally. Along the way, he realized that having a career was only one part of the future he wanted.
+
+He also wanted to create.
+
+He wanted to build something that belonged to him.
+
+He wanted to make decisions, take responsibility, explore ideas, create opportunities, and eventually build something that could provide value to other people.
+
+That desire became one of the driving forces behind KaliNova.
+
+For Soumyadip, entrepreneurship is not about having a perfect plan from day one. It is about being willing to start with what you have, learn what you don't know, and improve as you move forward.`
+    },
+    {
+      heading: "From Dream to Direction",
+      body: `There is a difference between having a dream and turning that dream into a direction.
+
+A dream is something you imagine.
+
+A direction is something you start working toward.
+
+Soumyadip chose to turn his ambition into action.
+
+Instead of waiting until everything was perfect, he began exploring ideas, understanding business, learning from experiences, and thinking about what kind of company he wanted to build.
+
+This process was not always easy.
+
+Starting something of your own comes with uncertainty.
+
+There are questions that do not always have immediate answers.
+
+Will people believe in the idea? Will customers come? Will the business grow? What happens when something goes wrong? How do you compete? How do you build trust? How do you keep going when progress is slower than expected?
+
+Entrepreneurship requires facing these questions without always knowing the answers.
+
+Soumyadip believes that this uncertainty is not something to be afraid of. It is part of the process of building something new.`
+    },
+    {
+      heading: "Why KaliNova?",
+      body: `KaliNova was created from the desire to build something with a long-term vision.
+
+The idea behind KaliNova is bigger than a single product or service.
+
+It is about creating a company that can grow, adapt, explore new opportunities, and eventually become something meaningful.
+
+The world is changing quickly. People's needs are changing. Businesses are changing. New opportunities are appearing every day.
+
+Soumyadip wants KaliNova to be capable of growing with those changes.
+
+Rather than defining the company by one narrow idea, he sees KaliNova as a foundation from which new ideas can be developed.
+
+The journey may take different directions over time, but the underlying purpose remains the same:
+
+To create value, explore opportunities, solve meaningful problems, and build something people can trust.`
+    },
+    {
+      heading: "Entrepreneurship as a Journey",
+      body: `For Soumyadip, entrepreneurship is not a title.
+
+It is a responsibility.
+
+Calling yourself a founder is easy. Building a company is not.
+
+A founder has to make decisions even when there is uncertainty. A founder has to accept responsibility when things do not go according to plan. A founder has to listen, learn, adapt, and continue moving forward.
+
+There are days when everything feels possible.
+
+There are also days when progress feels difficult.
+
+Both are part of the journey.
+
+Soumyadip believes that successful entrepreneurship is built through consistency rather than temporary motivation.
+
+A person may feel motivated today and discouraged tomorrow.
+
+But a business cannot depend only on motivation.
+
+It needs discipline. It needs patience. It needs continuous effort. It needs the ability to keep working even when results take time.
+
+This is the mindset he wants to bring to KaliNova.`
+    },
+    {
+      heading: "Learning From Every Experience",
+      body: `One of the most important lessons Soumyadip has learned is that every experience has something to teach.
+
+Success teaches you what works.
+
+Failure teaches you what needs to change.
+
+Difficult situations teach you patience.
+
+Working with people teaches you communication.
+
+Taking responsibility teaches you maturity.
+
+And starting a business teaches you that there is always more to learn.
+
+Soumyadip does not believe that a person needs to know everything before starting a company.
+
+In fact, he believes the opposite.
+
+You start with what you know. You identify what you don't know. Then you learn.
+
+You ask questions. You make mistakes. You improve.
+
+And you continue.
+
+This philosophy has become an important part of his approach to entrepreneurship.`
+    },
+    {
+      heading: "The Importance of Taking Risks",
+      body: `Every meaningful opportunity involves some level of risk.
+
+Choosing to start a company is itself a risk.
+
+There is no guaranteed path. There is no certainty that an idea will immediately succeed.
+
+But there is also a risk in never trying.
+
+Soumyadip believes that calculated risks are an important part of growth.
+
+Taking a risk does not mean acting without thinking.
+
+It means understanding the possibilities, accepting uncertainty, preparing as much as possible, and having the courage to take the next step.
+
+KaliNova is the result of taking that step.`
+    },
+    {
+      heading: "Building Something of His Own",
+      body: `One of the strongest motivations behind KaliNova is independence.
+
+Soumyadip wanted to create something where his ideas could become real.
+
+A place where he could experiment.
+
+A company where new ideas could be explored.
+
+An organization that could eventually create opportunities for other people.
+
+Building something of your own creates a different kind of responsibility.
+
+When you work for someone else, the company already has its identity, systems, customers, and direction.
+
+When you build your own company, you have to help create those things.
+
+That challenge is difficult, but it is also what makes entrepreneurship meaningful.
+
+Every decision becomes part of the company's story.
+
+Every customer relationship becomes part of its reputation.
+
+Every mistake becomes a lesson.
+
+Every achievement becomes part of the foundation for the future.`
+    },
+    {
+      heading: "The Values Behind KaliNova",
+      body: `Soumyadip believes that a company should be built around more than money.
+
+Business growth is important. Revenue is important. Sustainability is important.
+
+But a company also needs values.
+
+For KaliNova, some of the most important values are honesty, responsibility, learning, creativity, persistence, and respect.
+
+Honesty
+
+Trust takes a long time to build and can be lost quickly.
+
+Soumyadip believes that businesses should communicate honestly with their customers and partners.
+
+Promises should be realistic. Expectations should be clear. And when a problem occurs, it should be addressed rather than ignored.
+
+Responsibility
+
+When you build something, you have to take ownership of it.
+
+Soumyadip believes in accepting responsibility for both successes and mistakes.
+
+If something goes wrong, the goal should not simply be to find someone to blame.
+
+The goal should be to understand what happened and determine how it can be improved.
+
+Learning
+
+No entrepreneur knows everything.
+
+Markets change. Customers change. Business conditions change. New opportunities appear.
+
+Continuous learning is therefore essential.
+
+KaliNova is built with the idea that learning should never stop.
+
+Creativity
+
+New ideas often come from looking at familiar problems differently.
+
+Soumyadip believes in giving ideas room to grow and encouraging creative thinking.
+
+Not every idea will become a successful business.
+
+But every idea can teach you something.
+
+Persistence
+
+Building a company takes time.
+
+There will be setbacks. There will be uncertainty. There will be moments of doubt.
+
+Persistence means continuing to work while learning from those experiences.`
+    },
+    {
+      heading: "A Founder With a Long-Term Vision",
+      body: `Soumyadip does not see KaliNova as something that should be built only for today.
+
+He thinks about where the company could be years from now.
+
+The goal is to create a business that can evolve.
+
+A company that can enter new areas. A company that can develop new ideas. A company that can create employment and opportunities. A company that can build strong relationships with customers and partners.
+
+And ultimately, a company that can stand on its own identity.
+
+This long-term perspective is important because entrepreneurship is not only about the first year.
+
+It is about creating a foundation strong enough for the years that follow.`
+    },
+    {
+      heading: "More Than One Idea",
+      body: `KaliNova is intentionally open to possibilities.
+
+The company may begin with one direction, but that does not mean its future has to remain limited to it.
+
+Businesses evolve. Ideas change. Markets develop. New opportunities appear.
+
+Soumyadip wants KaliNova to have the flexibility to explore those opportunities.
+
+This does not mean chasing every trend.
+
+It means remaining open-minded while staying focused on creating genuine value.
+
+The company's future will be shaped by experience, customer needs, new opportunities, and the lessons learned along the way.`
+    },
+    {
+      heading: "Creating Opportunities for Others",
+      body: `An important part of Soumyadip's long-term vision is that KaliNova should eventually become more than a founder-led business.
+
+He wants to build something where other people can participate in the journey.
+
+As the company grows, there can be opportunities for employees, collaborators, creators, professionals, and future entrepreneurs.
+
+Creating opportunities for others is one of the ways a company can create a lasting impact.
+
+For Soumyadip, building a company is therefore not only about creating a career for himself.
+
+It is about eventually creating a platform where other people can also grow.`
+    },
+    {
+      heading: "What Success Means to Soumyadip",
+      body: `Everyone has a different definition of success.
+
+For Soumyadip, success is not simply about becoming wealthy or having a large company.
+
+Those may be outcomes of successful business growth, but they are not the only things that matter.
+
+Success means creating something that people value.
+
+It means earning the trust of customers.
+
+It means being able to create opportunities for others.
+
+It means building a team.
+
+It means overcoming challenges.
+
+It means learning from failure.
+
+And it means being proud of how the company was built.
+
+He believes that the way a company grows is just as important as how much it grows.`
+    },
+    {
+      heading: "The Reality of Building From the Beginning",
+      body: `KaliNova is being built from the ground up.
+
+That means the journey is still in its early stages.
+
+There is no illusion that everything is already established.
+
+There is still work to do. There are still ideas to test. There are still customers to reach. There are still processes to build. There are still lessons to learn.
+
+But that is what makes the journey exciting.
+
+Every company that becomes successful starts somewhere.
+
+The important thing is to begin.`
+    },
+    {
+      heading: "Looking Toward the Future",
+      body: `Soumyadip's vision for the future is ambitious, but it is also grounded in patience.
+
+He wants KaliNova to grow naturally through strong work, good relationships, useful ideas, and consistent improvement.
+
+He wants to build a company that can adapt to changing times without losing its core identity.
+
+He wants KaliNova to be recognized not only for what it creates, but also for how it treats people.
+
+Customers should feel respected.
+
+Partners should feel valued.
+
+Employees should have opportunities to grow.
+
+And everyone connected with the company should understand that they are contributing to something that is being built for the long term.`
+    },
+    {
+      heading: "The Story Is Still Being Written",
+      body: `Perhaps the most important thing about Soumyadip's entrepreneurial journey is that it is still being written.
+
+There is no final chapter yet.
+
+The company is young.
+
+The ideas will continue to evolve.
+
+The challenges will continue.
+
+The opportunities will continue.
+
+And Soumyadip intends to continue learning through all of it.
+
+The journey from having an idea to building a company is rarely straightforward.
+
+It involves uncertainty, patience, mistakes, unexpected opportunities, and countless small decisions.
+
+But every step contributes to the bigger picture.
+
+KaliNova represents that bigger picture for Soumyadip.
+
+It represents the decision to stop only imagining what could be built and start actually building it.`
+    },
+    {
+      heading: "A Message From the Founder",
+      quote: `KaliNova is more than a business idea for me. It is the beginning of something I want to build with my own vision, values, and effort. I know that building a company takes time, and I know there will be challenges along the way. I don't expect everything to happen overnight. My goal is to keep learning, keep improving, and keep moving forward. I want KaliNova to become a company that creates real value, builds trust, provides opportunities, and continues to grow with purpose. This is only the beginning, and I am excited about what we can build together.`,
+      signature: "Soumyadip Sasmal"
+    },
+    {
+      heading: "The Beginning of KaliNova",
+      body: `Every great journey has a beginning.
+
+For KaliNova, that beginning is today.
+
+It started with one person's willingness to dream beyond a traditional career.
+
+It continued with the courage to take the first step.
+
+And it will grow through hard work, learning, relationships, ideas, and the people who become part of the journey.
+
+Soumyadip's goal is not simply to say that he founded a company.
+
+His goal is to build one.
+
+Step by step. Idea by idea. Challenge by challenge. And opportunity by opportunity.
+
+KaliNova is the company he chose to build.
+
+The journey has started.
+
+The future is still being written.`
+    }
+  ];
+
+  // Renders one block of the founder story. Bodies are written as plain text
+  // with blank lines between paragraphs, so they go through escapeHtml.
+  function renderAboutBlock(block) {
+    let html = `<h2>${escapeHtml(block.heading)}</h2>`;
+
+    if (block.quote) {
+      html += `<blockquote class="about-quote"><p>${escapeHtml(block.quote)}</p>`;
+      if (block.signature) {
+        html += `<cite class="about-signature">${escapeHtml(block.signature)}<br>Founder &amp; Entrepreneur, KaliNova</cite>`;
+      }
+      html += `</blockquote>`;
+    }
+
+    if (block.body) {
+      html += String(block.body)
+        .split(/\n{2,}/)
+        .map(para => `<p>${escapeHtml(para.trim()).replace(/\n/g, "<br>")}</p>`)
+        .join("");
+    }
+
+    const slug = block.heading.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    return `<section class="about-block" id="about-block-${slug}">${html}</section>`;
+  }
+
+  function renderAbout() {
+    renderApp(`
+      <div class="about-page">
+        <header class="about-hero">
+          <div class="about-hero-avatar">${FOUNDER_MONOGRAM}</div>
+          <div class="about-hero-text">
+            <span class="page-title-label">Our Story</span>
+            <h1 class="about-hero-title">About Us</h1>
+            <p class="about-hero-role">Soumyadip Sasmal — Founder &amp; Entrepreneur, KaliNova</p>
+            <p class="about-hero-tagline">Every journey begins somewhere.</p>
+            <a href="#/category/latest-news" class="btn btn-primary">Read Our Stories</a>
+          </div>
+        </header>
+
+        <nav class="about-toc" aria-label="On this page">
+          ${ABOUT_SECTIONS.map(s => `<a href="#about-block-${escapeHtml(s.heading.toLowerCase().replace(/[^a-z0-9]+/g, "-"))}">${escapeHtml(s.heading)}</a>`).join("")}
+        </nav>
+
+        <div class="about-body">
+          ${ABOUT_SECTIONS.map(renderAboutBlock).join("")}
+        </div>
+      </div>
+    `);
+
+    // The table-of-contents links are same-page anchors. Rewrite them to plain
+    // ids so the hash router does not treat them as routes.
+    $$(".about-toc a", $(".about-page")).forEach(link => {
+      link.addEventListener("click", (e) => {
+        e.preventDefault();
+        const id = link.getAttribute("href").slice(1);
+        const target = document.getElementById(id);
+        if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    });
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Careers                                                            */
+  /* ------------------------------------------------------------------ */
+  function renderCareers() {
+    renderApp(`
+      <div class="page-container">
+        <header class="page-header">
+          <h1 class="page-title">Careers</h1>
+          <p class="page-subtitle">Join us in building something meaningful.</p>
+        </header>
+        <div class="about-body">
+          <section class="about-block">
+            <h2>We're just getting started</h2>
+            <p>KaliNova is growing. We care about curiosity, ownership, and building things that solve real problems.</p>
+            <p>If you're passionate about writing, design, or engineering and want to help shape the future of KaliNova, we'd love to hear from you.</p>
+            <p>Send a brief note with your interests to <a href="mailto:soumyadipsasmal88@gmail.com">soumyadipsasmal88@gmail.com</a>.</p>
+          </section>
+        </div>
+      </div>
+    `);
+  }
+
+  /* ------------------------------------------------------------------ */
   /* Register all routes                                                */
   /* ------------------------------------------------------------------ */
   window.KaliNovaPages = {
     renderHome, renderStories, renderStoryDetail, renderGuestPosts,
     renderNews, renderPortfolio, renderMarketplace, renderCV, renderSearch,
-    renderDashboard, renderProfile, renderSettings, renderCategory,
+    renderDashboard, renderProfile, renderSettings, renderCategory, renderAbout, renderCareers,
     renderGuestPostModal, renderCreateListingModal
   };
 
@@ -991,4 +1465,6 @@
   Router.register("/dashboard", renderDashboard);
   Router.register("/profile/:id", renderProfile);
   Router.register("/settings", renderSettings);
+  Router.register("/about", renderAbout);
+  Router.register("/careers", renderCareers);
 })();

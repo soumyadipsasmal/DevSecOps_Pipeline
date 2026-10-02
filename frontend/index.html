@@ -23,50 +23,28 @@
       </a>
     </div>
 
-    <nav class="header-right" aria-label="Primary">
-      <button class="btn btn-text" id="signin-btn" type="button">Sign In</button>
-      <button class="btn btn-primary" id="getstarted-btn" type="button">Get Started</button>
-
-      <!-- Auth nav (hidden by default) -->
-      <div class="user-menu" id="user-menu" hidden>
-        <button class="avatar-btn" id="user-menu-btn" type="button" aria-haspopup="true" aria-expanded="false">
-          <img src="https://i.pravatar.cc/64?img=12" alt="" class="avatar avatar-sm">
-        </button>
-        <div class="user-menu-panel" id="user-menu-panel" hidden role="menu">
-          <a href="#/dashboard" role="menuitem">Dashboard</a>
-          <a href="#/profile/me" role="menuitem">My Profile</a>
-          <a href="#/settings" role="menuitem">Settings</a>
-          <hr>
-          <button type="button" role="menuitem" id="logout-btn">Sign out</button>
-        </div>
-      </div>
+    <!-- TOPIC NAV: "For You" links back to the homepage; every other chip is
+         rendered by script.js from GET /api/categories and navigates to
+         #/category/<slug>. -->
+    <nav class="topic-nav" aria-label="Topics">
+      <ul id="topic-list">
+        <li><a class="topic-chip" href="#/">For You</a></li>
+      </ul>
     </nav>
 
     <button class="mobile-toggle" id="mobile-toggle" aria-label="Open menu" aria-expanded="false">
       <span></span><span></span><span></span>
     </button>
   </div>
-
-  <!-- TOPIC NAV: "For You" links back to the homepage; every other chip is
-       rendered by script.js from GET /api/categories and navigates to
-       #/category/<slug>. -->
-  <nav class="topic-nav" aria-label="Topics">
-    <ul id="topic-list">
-      <li><a class="topic-chip" href="#/">For You</a></li>
-    </ul>
-  </nav>
 </header>
 
 <!-- Mobile drawer -->
 <div class="mobile-drawer" id="mobile-drawer" hidden>
-  <a href="#/" class="mobile-nav-link">For You</a>
+<hr class="mobile-drawer-divider">
+  <ul id="mobile-topic-list">
+    <li><a href="#/" class="mobile-nav-link">For You</a></li>
+  </ul>
   <a href="#/search" class="mobile-nav-link">Search</a>
-  <hr class="mobile-drawer-divider">
-  <a href="#/dashboard" class="mobile-nav-link mobile-auth-link" hidden>Dashboard</a>
-  <a href="#/settings" class="mobile-nav-link mobile-auth-link" hidden>Settings</a>
-  <button class="btn btn-text mobile-auth-btn" id="mobile-signin-btn" type="button">Sign In</button>
-  <button class="btn btn-primary mobile-auth-btn" id="mobile-getstarted-btn" type="button">Get Started</button>
-  <button class="btn btn-text mobile-auth-btn mobile-logout-btn" id="mobile-logout-btn" type="button" hidden>Sign Out</button>
 </div>
 
 <!-- ============ APP CONTAINER ============ -->
@@ -92,6 +70,14 @@
       </ul>
     </nav>
 
+    <nav class="footer-col" aria-label="Company">
+      <h3 class="footer-heading">Company</h3>
+      <ul class="footer-links">
+        <li><a href="#/about">About Us</a></li>
+        <li><a href="#/careers">Careers</a></li>
+      </ul>
+    </nav>
+
     <div class="footer-col" aria-label="Contact">
       <h3 class="footer-heading">Contact</h3>
       <ul class="footer-links">
@@ -108,39 +94,7 @@
   </div>
 </footer>
 
-<!-- ============ AUTH MODAL ============ -->
-<div class="modal-overlay" id="auth-modal" hidden>
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title">
-    <div class="modal-header">
-      <h2 id="auth-modal-title">Sign In</h2>
-      <button type="button" class="icon-btn modal-close" id="auth-modal-close" aria-label="Close">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
-      </button>
-    </div>
-    <form id="auth-form" novalidate>
-      <div class="modal-field" id="auth-username-field" hidden>
-        <label for="auth-username">Username</label>
-        <input type="text" id="auth-username" name="username" autocomplete="username">
-      </div>
-      <div class="modal-field">
-        <label for="auth-email">Email</label>
-        <input type="email" id="auth-email" name="email" autocomplete="email" required>
-      </div>
-      <div class="modal-field">
-        <label for="auth-password">Password</label>
-        <input type="password" id="auth-password" name="password" autocomplete="current-password" required>
-      </div>
-      <p class="modal-error" id="auth-error" hidden></p>
-      <div class="modal-actions">
-        <button type="submit" class="btn btn-primary" id="auth-submit-btn">Sign In</button>
-      </div>
-      <p class="modal-switch">
-        <span id="auth-switch-text">New to KaliNova?</span>
-        <button type="button" class="btn btn-text" id="auth-switch-btn">Create an account</button>
-      </p>
-    </form>
-  </div>
-</div>
+<!-- ============ WRITE MODAL ============ -->
 
 <!-- ============ WRITE MODAL ============ -->
 <div class="modal-overlay" id="write-modal" hidden>
