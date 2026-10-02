@@ -253,62 +253,6 @@
   });
 
   /* ------------------------------------------------------------------ */
-  /* Header search                                                      */
-  /* ------------------------------------------------------------------ */
-  const searchInput = $("#header-search");
-  const searchResults = $("#search-results");
-  let searchDebounce = null;
-
-  async function runSearch(query) {
-    const q = query.trim();
-    if (!q) { searchResults.hidden = true; searchResults.innerHTML = ""; return; }
-    try {
-      const res = await fetch(`/api/articles?search=${encodeURIComponent(q)}`);
-      if (!res.ok) throw new Error("API error");
-      const data = await res.json();
-      searchResults.innerHTML = "";
-      const matches = data.articles.slice(0, 6);
-      if (matches.length === 0) {
-        searchResults.innerHTML = `<p class="search-empty">No results for "${query}"</p>`;
-      } else {
-        matches.forEach(a => {
-          const link = document.createElement("a");
-          link.href = `#/stories/${a.id}`;
-          link.innerHTML = `
-            <span class="search-result-title">${a.title}</span>
-            <span class="search-result-meta" style="display:block">${a.author_username} &middot; ${a.category_name || "General"}</span>`;
-          searchResults.appendChild(link);
-        });
-        const viewAll = document.createElement("a");
-        viewAll.href = `#/search?q=${encodeURIComponent(q)}`;
-        viewAll.className = "search-result-viewall";
-        viewAll.textContent = "View all results";
-        searchResults.appendChild(viewAll);
-      }
-      searchResults.hidden = false;
-    } catch {
-      searchResults.innerHTML = `<p class="search-empty">Search unavailable</p>`;
-      searchResults.hidden = false;
-    }
-  }
-
-  searchInput.addEventListener("input", (e) => {
-    clearTimeout(searchDebounce);
-    searchDebounce = setTimeout(() => runSearch(e.target.value), 250);
-  });
-  $("#header-search-form").addEventListener("submit", (e) => {
-    e.preventDefault();
-    const q = searchInput.value.trim();
-    if (q) {
-      searchResults.hidden = true;
-      Router.navigate(`#/search?q=${encodeURIComponent(q)}`);
-    }
-  });
-  document.addEventListener("click", (e) => {
-    if (!e.target.closest(".header-search")) searchResults.hidden = true;
-  });
-
-  /* ------------------------------------------------------------------ */
   /* User menu dropdown                                                 */
   /* ------------------------------------------------------------------ */
   const userMenuBtn = $("#user-menu-btn");
