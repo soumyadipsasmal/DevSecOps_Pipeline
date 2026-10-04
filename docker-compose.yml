@@ -42,6 +42,9 @@ services:
       - ./database/seed-categories.sql:/docker-entrypoint-initdb.d/02-seed-categories.sql:ro
       - ./database/seed.sql:/docker-entrypoint-initdb.d/03-seed.sql:ro
       - ./database/seed-topics.sql:/docker-entrypoint-initdb.d/04-seed-topics.sql:ro
+      - ./database/schema-article-images.sql:/docker-entrypoint-initdb.d/05-article-images.sql:ro
+      - ./database/fix-article-categories.sql:/docker-entrypoint-initdb.d/06-fix-categories.sql:ro
+      - ./database/seed-editorial-2026.sql:/docker-entrypoint-initdb.d/07-seed-editorial-2026.sql:ro
 
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U medium_user -d medium_clone"]

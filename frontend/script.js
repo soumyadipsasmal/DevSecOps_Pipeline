@@ -30,28 +30,14 @@
 
       list.querySelectorAll("li:not(:first-child)").forEach(li => li.remove());
 
-      // The drawer carries the same topics on narrow screens, where the
-      // header row is hidden in favour of the hamburger.
-      const mobileList = $("#mobile-topic-list");
-
       categories.forEach(c => {
         const li = document.createElement("li");
         const a = document.createElement("a");
         a.className = "topic-chip";
-        a.href = `#/category/${c.slug}`;
+        a.href = `/category/${c.slug}`;
         a.textContent = c.name;
         li.appendChild(a);
         list.appendChild(li);
-
-        if (mobileList) {
-          const mli = document.createElement("li");
-          const ma = document.createElement("a");
-          ma.className = "mobile-nav-link";
-          ma.href = `#/category/${c.slug}`;
-          ma.textContent = c.name;
-          mli.appendChild(ma);
-          mobileList.appendChild(mli);
-        }
       });
 
       const footerList = $("#footer-topic-list");
@@ -60,24 +46,48 @@
         categories.forEach(c => {
           const li = document.createElement("li");
           const a = document.createElement("a");
-          a.href = `#/category/${c.slug}`;
+          a.href = `/category/${c.slug}`;
           a.textContent = c.name;
           li.appendChild(a);
           footerList.appendChild(li);
         });
       }
+
+      highlightActiveTopic();
+      syncTopicStrip();
     } catch (e) {
       console.error("Failed to load topics:", e);
     }
   }
 
+  /* Edge fade hints for the topic strip on narrow screens. Each side only fades
+     when there is more content that way, so the first chip is never dimmed
+     while the strip is already scrolled to the start. */
+  function syncTopicStrip() {
+    const nav = $(".topic-nav");
+    const list = nav && $("#topic-list", nav);
+    if (!list) return;
+
+    const overflows = list.scrollWidth - list.clientWidth > 1;
+    nav.classList.toggle("is-scroll-start", overflows && list.scrollLeft > 1);
+    nav.classList.toggle("is-scroll-end", overflows && list.scrollLeft < list.scrollWidth - list.clientWidth - 1);
+  }
+
   function highlightActiveTopic() {
-    const hash = window.location.hash;
+    // Compare against the resolved route rather than location.hash, so the chip
+    // still highlights now that navigation uses clean paths.
+    const current = Router.getCurrentPath().split("?")[0].replace(/\/+$/, "") || "/";
 
     const list = $("#topic-list");
     if (list) {
       $$(".topic-chip", list).forEach(chip => {
-        chip.classList.toggle("is-active", chip.getAttribute("href") === hash);
+        const href = chip.getAttribute("href").split("?")[0].replace(/\/+$/, "") || "/";
+        chip.classList.toggle("is-active", href === current);
+        if (href === current) {
+          chip.setAttribute("aria-current", "page");
+        } else {
+          chip.removeAttribute("aria-current");
+        }
       });
     }
   }
@@ -138,7 +148,7 @@
       if (!response.ok) throw new Error(data.error || "Could not save the article");
       closeWriteModal();
       alert("Published as KaliNova.");
-      Router.navigate("#/");
+      Router.navigate("/");
     } catch (error) {
       writeError.textContent = error.message;
       writeError.hidden = false;
@@ -162,12 +172,26 @@
 
   // Close mobile drawer on nav link click
   $$(".mobile-nav-link", mobileDrawer).forEach(link => {
-    link.addEventListener("click", () => {
-      mobileDrawer.hidden = true;
-      mobileToggle.setAttribute("aria-expanded", "false");
-      mobileDrawer.style.display = "none";
-    });
+    link.addEventListener("click", closeMobileDrawer);
   });
+  $$(".mobile-drawer-contact", mobileDrawer).forEach(link => {
+    link.addEventListener("click", closeMobileDrawer);
+  });
+
+  function closeMobileDrawer() {
+    mobileDrawer.hidden = true;
+    mobileToggle.setAttribute("aria-expanded", "false");
+    mobileDrawer.style.display = "none";
+  }
+
+  // Keep the edge fades honest as the strip scrolls, and as the viewport or the
+  // chip count changes. Bound at init because #topic-list is empty until
+  // renderTopicNav() resolves.
+  const topicList = $("#topic-list");
+  if (topicList) {
+    topicList.addEventListener("scroll", syncTopicStrip, { passive: true });
+    window.addEventListener("resize", syncTopicStrip);
+  }
 
   /* ------------------------------------------------------------------ */
   /* Custom event listeners (for page components)                       */
@@ -188,9 +212,15 @@
     Router.init();
     highlightActiveNav();
     highlightActiveTopic();
-    window.addEventListener("hashchange", () => {
+    // The router fires this for clean-path navigation too, so a hashchange
+    // listener alone would miss most page changes.
+    document.addEventListener("kal:route", () => {
       highlightActiveNav();
       highlightActiveTopic();
+      syncTopicStrip();
+      // The topic strip now sits directly below the hamburger, so navigating
+      // must not leave the drawer hanging open over it.
+      closeMobileDrawer();
     });
   });
 })();

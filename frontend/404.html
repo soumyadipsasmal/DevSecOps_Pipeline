@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en-IN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Page not found — KaliNova</title>
+<meta name="description" content="That page does not exist on KaliNova. Browse the latest stories instead.">
+<meta name="robots" content="noindex, follow">
+<link rel="canonical" href="https://kalinova.in/404.html">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/style.css">
+<style>
+  /* This page has no header or footer, so it carries the handful of layout
+     rules it needs on its own. Colours and fonts come from the design tokens
+     in style.css. */
+  body { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+  .notfound {
+    max-width: 560px;
+    padding: 48px 24px;
+    text-align: center;
+  }
+  .notfound-code {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    letter-spacing: 0.14em;
+    color: var(--accent);
+    margin-bottom: 12px;
+  }
+  .notfound-title {
+    font-family: var(--font-display);
+    font-size: clamp(1.75rem, 6vw, 2.6rem);
+    line-height: 1.15;
+    color: var(--ink);
+    margin-bottom: 12px;
+  }
+  .notfound-text { color: var(--ink-soft); margin-bottom: 28px; }
+  .notfound-links { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+  .notfound-logo { display: inline-block; margin-bottom: 28px; }
+</style>
+</head>
+<body>
+<main class="notfound">
+  <a href="/" class="notfound-logo">
+    <img src="/assets/kalinova-logo-96.png" alt="KaliNova" width="144" height="48" decoding="async">
+  </a>
+  <p class="notfound-code">Error 404</p>
+  <h1 class="notfound-title">That page could not be found</h1>
+  <p class="notfound-text">
+    The link may be out of date, or the page may have moved. Try one of these instead.
+  </p>
+  <nav class="notfound-links" aria-label="Suggested pages">
+    <a class="btn btn-primary" href="/">Back to home</a>
+    <a class="btn btn-outline" href="/stories">Browse all stories</a>
+    <a class="btn btn-outline" href="/search">Search</a>
+  </nav>
+</main>
+</body>
+</html>

@@ -1,0 +1,24 @@
+# Cloudflare Pages / Netlify headers for KaliNova.
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: SAMEORIGIN
+  Permissions-Policy: geolocation=(), microphone=(), camera=(), interest-cohort=()
+  # The page must work whether or not the Google Fonts stylesheet loads.
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data:; connect-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'
+
+# Fingerprinted-by-content assets are not fingerprinted here, so keep the cache
+# short and revalidate. Static files are served straight from disk.
+/assets/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+  X-Content-Type-Options: nosniff
+
+/*.css
+  Cache-Control: public, max-age=3600, must-revalidate
+
+/*.js
+  Cache-Control: public, max-age=3600, must-revalidate
+
+/sitemap.xml
+  Cache-Control: public, max-age=1800

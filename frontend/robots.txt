@@ -1,0 +1,22 @@
+# KaliNova — https://kalinova.in/
+# All crawling is welcome. Only paths that cannot be indexed are disallowed,
+# and they are still crawlable via /robots.txt so the URL structure stays
+# discoverable.
+
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /settings
+Disallow: /cv
+Disallow: /portfolio
+Disallow: /marketplace
+Disallow: /profile/
+Disallow: /search
+
+# Query-string search results are duplicates of the same pages.
+Disallow: /*?q=
+
+# The numeric article form redirects itself to /blog/<slug>.
+Disallow: /stories/
+
+Sitemap: https://kalinova.in/sitemap.xml

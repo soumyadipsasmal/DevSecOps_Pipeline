@@ -1,14 +1,92 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-IN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- Title, description, canonical and robots are rewritten per page by
+     frontend/seo.js. The values here are the homepage defaults and the
+     fallback that crawlers see if they do not execute JavaScript. -->
 <title>KaliNova — Read. Write. Share.</title>
-<meta name="description" content="KaliNova is a platform for developers, DevOps engineers, and technologists to read, write, build portfolios, and sell products.">
+<meta name="title" content="KaliNova — Read. Write. Share.">
+<meta name="description" content="KaliNova is an independent publishing platform for readers and writers, covering stories on cinema, fashion, news, wildlife and travel.">
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+<meta name="author" content="KaliNova">
+<meta name="theme-color" content="#1F6B4F">
+<link rel="canonical" href="https://kalinova.in/">
+
+<!-- Open Graph -->
+<meta property="og:site_name" content="KaliNova">
+<meta property="og:locale" content="en_IN">
+<meta property="og:type" content="website">
+<meta property="og:title" content="KaliNova — Read. Write. Share.">
+<meta property="og:description" content="KaliNova is an independent publishing platform for readers and writers, covering stories on cinema, fashion, news, wildlife and travel.">
+<meta property="og:url" content="https://kalinova.in/">
+<meta property="og:image" content="https://kalinova.in/assets/og-image.png">
+<meta property="og:image:alt" content="KaliNova">
+
+<!-- Twitter card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="KaliNova — Read. Write. Share.">
+<meta name="twitter:description" content="KaliNova is an independent publishing platform for readers and writers, covering stories on cinema, fashion, news, wildlife and travel.">
+<meta name="twitter:image" content="https://kalinova.in/assets/og-image.png">
+<meta name="twitter:image:alt" content="KaliNova">
+
+<!-- Icons -->
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/icon-180.png">
+<link rel="manifest" href="/site.webmanifest">
+
+<!-- Fonts: preconnect first so the CSS request starts without waiting on DNS -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="style.css">
+
+<!-- Structured data. Identifiers are the site entities only; the page-specific
+     WebPage node is added by seo.js at render time. -->
+<script type="application/ld+json" id="kalinova-jsonld">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://kalinova.in/#organization",
+      "name": "KaliNova",
+      "url": "https://kalinova.in/",
+      "logo": { "@type": "ImageObject", "url": "https://kalinova.in/assets/icon-512.png" },
+      "email": "soumyadipsasmal88@gmail.com",
+      "contactPoint": [
+        {
+          "@type": "ContactPoint",
+          "contactType": "customer support",
+          "email": "soumyadipsasmal88@gmail.com",
+          "telephone": "+91 6290687215",
+          "availableLanguage": ["en", "hi"]
+        }
+      ]
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://kalinova.in/#website",
+      "name": "KaliNova",
+      "url": "https://kalinova.in/",
+      "description": "KaliNova is an independent publishing platform for readers and writers, covering stories on cinema, fashion, news, wildlife and travel.",
+      "inLanguage": "en-IN",
+      "publisher": { "@id": "https://kalinova.in/#organization" },
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": {
+          "@type": "EntryPoint",
+          "urlTemplate": "https://kalinova.in/search?q={search_term_string}"
+        },
+        "query-input": "required name=search_term_string"
+      }
+    }
+  ]
+}
+</script>
 </head>
 <body>
 
@@ -18,33 +96,40 @@
 <header class="site-header">
   <div class="header-inner">
     <div class="header-left">
-      <a href="#/" class="logo" aria-label="KaliNova home">
-        <img src="/assets/kalinova-logo.png" alt="KaliNova" class="logo-image">
+      <a href="/" class="logo" aria-label="KaliNova home">
+        <img src="/assets/kalinova-logo-96.png" alt="KaliNova" class="logo-image" width="96" height="32" decoding="async">
       </a>
     </div>
 
     <!-- TOPIC NAV: "For You" links back to the homepage; every other chip is
          rendered by script.js from GET /api/categories and navigates to
-         #/category/<slug>. -->
+         /category/<slug>. -->
     <nav class="topic-nav" aria-label="Topics">
       <ul id="topic-list">
-        <li><a class="topic-chip" href="#/">For You</a></li>
+        <li><a class="topic-chip" href="/">For You</a></li>
       </ul>
     </nav>
 
-    <button class="mobile-toggle" id="mobile-toggle" aria-label="Open menu" aria-expanded="false">
+    <button class="mobile-toggle" id="mobile-toggle" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-drawer">
       <span></span><span></span><span></span>
     </button>
   </div>
 </header>
 
-<!-- Mobile drawer -->
+<!-- Mobile drawer: company details only. Topics live in their own row in the
+     header (see the .topic-nav rules in the <=720px block) instead of being
+     duplicated in here. -->
 <div class="mobile-drawer" id="mobile-drawer" hidden>
-<hr class="mobile-drawer-divider">
-  <ul id="mobile-topic-list">
-    <li><a href="#/" class="mobile-nav-link">For You</a></li>
-  </ul>
-  <a href="#/search" class="mobile-nav-link">Search</a>
+  <h2 class="mobile-drawer-heading">Company</h2>
+  <a href="/about" class="mobile-nav-link">About Us</a>
+  <a href="/services" class="mobile-nav-link">Services</a>
+  <a href="/careers" class="mobile-nav-link">Careers</a>
+  <a href="/contact" class="mobile-nav-link">Contact</a>
+  <a href="/search" class="mobile-nav-link">Search</a>
+  <hr class="mobile-drawer-divider">
+  <h2 class="mobile-drawer-heading">Get in touch</h2>
+  <a href="tel:+916290687215" class="mobile-drawer-contact">+91 6290687215</a>
+  <a href="mailto:soumyadipsasmal88@gmail.com" class="mobile-drawer-contact">soumyadipsasmal88@gmail.com</a>
 </div>
 
 <!-- ============ APP CONTAINER ============ -->
@@ -56,25 +141,27 @@
 <footer class="site-footer" aria-label="Site footer">
   <div class="footer-inner">
     <div class="footer-brand">
-      <a href="#/" class="footer-logo" aria-label="KaliNova home">
-        <img src="/assets/kalinova-logo.png" alt="KaliNova" class="footer-logo-image">
+      <a href="/" class="footer-logo" aria-label="KaliNova home">
+        <img src="/assets/kalinova-logo-96.png" alt="KaliNova" class="footer-logo-image" width="84" height="28" loading="lazy" decoding="async">
       </a>
-      <p class="footer-tagline">KaliNova is a platform for developers, DevOps engineers, and technologists to read, write, build portfolios, and sell products.</p>
-      <p class="footer-motto">Read. Write. Share. Build. Sell.</p>
+      <p class="footer-tagline">KaliNova is an independent publishing platform for readers and writers, covering stories on cinema, fashion, news, wildlife and travel.</p>
+      <p class="footer-motto">Read. Write. Share.</p>
     </div>
 
     <nav class="footer-col" aria-label="Explore">
       <h3 class="footer-heading">Topics</h3>
       <ul class="footer-links" id="footer-topic-list">
-        <li><a href="#/">For You</a></li>
+        <li><a href="/">For You</a></li>
       </ul>
     </nav>
 
     <nav class="footer-col" aria-label="Company">
       <h3 class="footer-heading">Company</h3>
       <ul class="footer-links">
-        <li><a href="#/about">About Us</a></li>
-        <li><a href="#/careers">Careers</a></li>
+        <li><a href="/about">About Us</a></li>
+        <li><a href="/services">Services</a></li>
+        <li><a href="/careers">Careers</a></li>
+        <li><a href="/contact">Contact</a></li>
       </ul>
     </nav>
 
@@ -102,7 +189,7 @@
     <div class="modal-header">
       <h2 id="write-modal-title">Write a story</h2>
       <button type="button" class="icon-btn modal-close" id="write-modal-close" aria-label="Close">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
       </button>
     </div>
     <form id="write-form" novalidate>
@@ -126,7 +213,9 @@
   </div>
 </div>
 
-<!-- Scripts: router first, then pages, then main script -->
+<!-- Scripts: SEO config, then router, pages and the main controller. seo.js
+     must load before pages.js so the first render can describe itself. -->
+<script src="seo.js"></script>
 <script src="router.js"></script>
 <script src="pages.js"></script>
 <script src="script.js"></script>

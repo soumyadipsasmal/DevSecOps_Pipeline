@@ -1,0 +1,17 @@
+# Cloudflare Pages / Netlify redirects for KaliNova.
+#
+# The app is a single-page application: every clean route is served by
+# frontend/index.html and rendered by frontend/router.js. app/server.js does the
+# same thing for the Docker/Express deployment, so both hosting models behave
+# identically.
+#
+# Static files (css, js, images, icons) are matched first and are never
+# rewritten, so existing links to /style.css or /assets/... keep working.
+#
+# Note: there is deliberately no redirect for /stories/<id> -> /blog/<slug>.
+# A slug cannot be derived from a numeric id without a database lookup, so the
+# frontend resolves the id and upgrades the URL in the browser instead. A static
+# 301 here would send crawlers to a URL that does not exist.
+
+# Everything that is not a real file falls through to the SPA shell.
+/*                        /index.html          200

@@ -5,8 +5,10 @@
 (() => {
   "use strict";
 
-  const DEFAULT_AVATAR = "https://i.pravatar.cc/64?img=12";
-  const DEFAULT_COVER = "https://images.unsplash.com/photo-1518770660439-4636190af475?w=800&q=60";
+  const DEFAULT_AVATAR = "/assets/article-meta.png";
+  // Articles may be published without a cover image. When that happens the
+  // media block is dropped entirely rather than filled with a placeholder.
+  const DEFAULT_COVER = "";
 
   function $(sel, root = document) { return root.querySelector(sel); }
   function $$(sel, root = document) { return Array.from(root.querySelectorAll(sel)); }
@@ -15,10 +17,26 @@
   // and settings views, so those always render without a signed-in check.
   function isLoggedIn() { return true; }
 
+  // Drop cover images that resolved to an empty source, along with the
+  // anchor that wraps them, so cards collapse cleanly instead of showing a
+  // broken image or an empty grey box.
+  function stripEmptyCovers(root) {
+    $$("img", root).forEach(img => {
+      if (img.getAttribute("src")) return;
+      const wrapper = img.closest(".card-media, .story-card-media, .news-card-media");
+      if (wrapper) {
+        wrapper.remove();
+      } else {
+        img.remove();
+      }
+    });
+  }
+
   function renderApp(content) {
     const app = $("#app");
     if (app) {
       app.innerHTML = content;
+      stripEmptyCovers(app);
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
   }
@@ -48,6 +66,13 @@
       .replace(/'/g, "&#39;");
   }
 
+  /* Escapes a line, then re-applies the inline "**bold**" markers used by the
+     editorial seeds. Escaping happens first, so the only markup that can reach
+     the DOM is the <strong> added here. */
+  function inlineMarkup(text) {
+    return escapeHtml(text).replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  }
+
   /* Renders plain-text article bodies that may use "# " / "## " headings
      and blank lines between paragraphs. All text is escaped first. */
   function formatContent(content) {
@@ -59,9 +84,9 @@
         if (!lines.length) return "";
         const heading = lines[0].match(/^#{1,6}\s+(.*)$/);
         if (heading && lines.length === 1) {
-          return `<h2>${escapeHtml(heading[1].trim())}</h2>`;
+          return `<h2>${inlineMarkup(heading[1].trim())}</h2>`;
         }
-        return `<p>${lines.map(l => escapeHtml(l)).join("<br>")}</p>`;
+        return `<p>${lines.map(l => inlineMarkup(l)).join("<br>")}</p>`;
       })
       .filter(Boolean)
       .join("");
@@ -70,6 +95,7 @@
   function makeExcerpt(content, max = 200) {
     const text = String(content || "")
       .replace(/^#{1,6}\s+/gm, "")
+      .replace(/\*\*([^*]+)\*\*/g, "$1")
       .replace(/\s+/g, " ")
       .trim();
     if (text.length <= max) return escapeHtml(text);
@@ -79,9 +105,52 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* SEO helpers                                                         */
+  /* ------------------------------------------------------------------ */
+
+  const SEO = window.KaliNovaSEO;
+
+  // Plain-text body text for <title> and meta descriptions. Unlike
+  // makeExcerpt this does not escape, because the SEO helpers write the value
+  // through setAttribute where the browser handles encoding.
+  function plainText(content, max = 200) {
+    const text = String(content || "")
+      .replace(/^#{1,6}\s+/gm, "")
+      .replace(/\*\*([^*]+)\*\*/g, "$1")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (text.length <= max) return text;
+    const clipped = text.slice(0, max);
+    const cut = clipped.lastIndexOf(" ");
+    return (cut > 0 ? clipped.slice(0, cut) : clipped).replace(/[,;:.]$/, "");
+  }
+
+  /**
+   * Canonical article path. Every published row carries a slug, so the clean
+   * /blog/<slug> form is the default; the numeric id form is kept only as a
+   * fallback and is canonicalised away by renderStoryDetail.
+   */
+  function articlePath(a) {
+    if (a && a.slug) return `/blog/${encodeURIComponent(a.slug)}`;
+    return a && a.id ? `/stories/${a.id}` : "/stories";
+  }
+
+  // Apply a static page's title/description/canonical/schema in one call.
+  function seoPage(key, overrides) {
+    if (SEO) SEO.applyPage(key, overrides);
+  }
+
+  // Tool and account views: real pages for users, but never in an index.
+  function seoNoindex(path, title) {
+    if (!SEO) return;
+    SEO.applyPage("search", { path, title });
+  }
+
+  /* ------------------------------------------------------------------ */
   /* Home / For You                                                     */
   /* ------------------------------------------------------------------ */
   async function renderHome() {
+    seoPage("home");
     showLoading("Loading stories...");
     try {
       const [artRes, catRes] = await Promise.all([
@@ -93,9 +162,10 @@
       const catData = await catRes.json();
 
       const articles = artData.articles.map(a => ({
-        id: a.id, title: a.title, excerpt: makeExcerpt(a.content),
+        id: a.id, slug: a.slug, title: a.title, excerpt: makeExcerpt(a.content),
         author: { id: a.author_id, name: a.author_username, avatar: a.author_avatar || DEFAULT_AVATAR },
-        category: a.category_name || "General", image: a.cover_image || DEFAULT_COVER,
+        category: a.category_name || "General", categorySlug: a.category_slug,
+        image: a.cover_image || DEFAULT_COVER,
         featured: Boolean(a.is_featured), date: formatDate(a.published_at || a.created_at),
         readTime: readMins(a.content)
       }));
@@ -114,13 +184,13 @@
               <div class="featured-grid">
                 ${featured.length ? featured.map(a => `
                   <article class="card card-featured">
-                    <a class="card-media" href="#/stories/${a.id}"><img class="card-img" src="${a.image}" alt="${a.title}"></a>
+                    <a class="card-media" href="${articlePath(a)}" aria-label="${a.title}"><img class="card-img" src="${a.image}" alt="${a.title}" loading="lazy" decoding="async" width="1200" height="675"></a>
                     <div class="card-body">
                       <p class="card-eyebrow">${a.category}</p>
-                      <h3 class="card-title"><a href="#/stories/${a.id}">${a.title}</a></h3>
+                      <h3 class="card-title"><a href="${articlePath(a)}">${a.title}</a></h3>
                       <p class="card-desc">${a.excerpt}</p>
                       <div class="card-meta">
-                        <img class="avatar avatar-xs" src="${a.author.avatar}" alt="${a.author.name}">
+                        <img class="avatar avatar-xs" src="${a.author.avatar}" alt="${a.author.name}" width="24" height="24" loading="lazy" decoding="async">
                         <span class="meta-author">${a.author.name}</span>
                         <span class="meta-dot">&middot;</span>
                         <span class="meta-read">${a.readTime} min read</span>
@@ -157,10 +227,10 @@
                     <span class="trending-rank">${String(i + 1).padStart(2, "0")}</span>
                     <div class="trending-content">
                       <div class="trending-author-row">
-                        <img class="avatar avatar-xxs" src="${a.author.avatar}" alt="${a.author.name}">
+                        <img class="avatar avatar-xxs" src="${a.author.avatar}" alt="${a.author.name}" width="20" height="20" loading="lazy" decoding="async">
                         <span class="meta-author">${a.author.name}</span>
                       </div>
-                      <h4 class="trending-title"><a href="#/stories/${a.id}">${a.title}</a></h4>
+                      <h4 class="trending-title"><a href="${articlePath(a)}">${a.title}</a></h4>
                     </div>
                   </li>
                 `).join("")}
@@ -181,12 +251,12 @@
       <article class="card card-row">
         <div class="card-body">
           <div class="card-meta card-meta-top">
-            <img class="avatar avatar-xs" src="${a.author.avatar}" alt="${a.author.name}">
+            <img class="avatar avatar-xs" src="${a.author.avatar}" alt="${a.author.name}" width="24" height="24" loading="lazy" decoding="async">
             <span class="meta-author">${a.author.name}</span>
             <span class="meta-dot">&middot;</span>
             <span class="meta-date">${a.date}</span>
           </div>
-          <h3 class="card-title"><a href="#/stories/${a.id}">${a.title}</a></h3>
+          <h3 class="card-title"><a href="${articlePath(a)}">${a.title}</a></h3>
           <p class="card-desc">${a.excerpt}</p>
           <div class="card-footer">
             <p class="card-eyebrow">${a.category}</p>
@@ -194,7 +264,7 @@
             <span class="meta-read">${a.readTime} min read</span>
           </div>
         </div>
-        <a class="card-media card-media-side" href="#/stories/${a.id}"><img class="card-img" src="${a.image}" alt="${a.title}"></a>
+        <a class="card-media card-media-side" href="${articlePath(a)}" aria-label="${a.title}"><img class="card-img" src="${a.image}" alt="${a.title}" loading="lazy" decoding="async" width="1200" height="675"></a>
       </article>`;
   }
 
@@ -202,15 +272,17 @@
   /* Stories Page                                                       */
   /* ------------------------------------------------------------------ */
   async function renderStories() {
+    seoPage("stories");
     showLoading("Loading stories...");
     try {
       const res = await fetch("/api/articles");
       if (!res.ok) throw new Error("API error");
       const data = await res.json();
       const articles = data.articles.map(a => ({
-        id: a.id, title: a.title, excerpt: makeExcerpt(a.content),
+        id: a.id, slug: a.slug, title: a.title, excerpt: makeExcerpt(a.content),
         author: { id: a.author_id, name: a.author_username, avatar: a.author_avatar || DEFAULT_AVATAR },
-        category: a.category_name || "General", image: a.cover_image || DEFAULT_COVER,
+        category: a.category_name || "General", categorySlug: a.category_slug,
+        image: a.cover_image || DEFAULT_COVER,
         featured: Boolean(a.is_featured), date: formatDate(a.published_at || a.created_at),
         readTime: readMins(a.content)
       }));
@@ -225,13 +297,13 @@
           <div class="stories-grid">
             ${articles.length ? articles.map(a => `
               <article class="story-card">
-                <a class="story-card-media" href="#/stories/${a.id}"><img src="${a.image}" alt="${a.title}"></a>
+                <a class="story-card-media" href="${articlePath(a)}" aria-label="${a.title}"><img src="${a.image}" alt="${a.title}" loading="lazy" decoding="async" width="1200" height="750"></a>
                 <div class="story-card-body">
                   <span class="story-card-category">${a.category}</span>
-                  <h3 class="story-card-title"><a href="#/stories/${a.id}">${a.title}</a></h3>
+                  <h3 class="story-card-title"><a href="${articlePath(a)}">${a.title}</a></h3>
                   <p class="story-card-excerpt">${a.excerpt}</p>
                   <div class="story-card-meta">
-                    <img class="avatar avatar-xs" src="${a.author.avatar}" alt="${a.author.name}">
+                    <img class="avatar avatar-xs" src="${a.author.avatar}" alt="${a.author.name}" width="24" height="24" loading="lazy" decoding="async">
                     <span class="meta-author">${a.author.name}</span>
                     <span class="meta-dot">&middot;</span>
                     <span>${a.readTime} min read</span>
@@ -250,48 +322,285 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* Article gallery                                                     */
+  /* ------------------------------------------------------------------ */
+  // Photos embedded in a story body. Every one is a Creative Commons file, so
+  // each tile carries its creator and licence back to the source page.
+  const LICENSE_NAMES = {
+    by: "CC BY",
+    "by-sa": "CC BY-SA",
+    "by-nd": "CC BY-ND",
+    "by-nc": "CC BY-NC",
+    "by-nc-sa": "CC BY-NC-SA",
+    "by-nc-nd": "CC BY-NC-ND",
+    cc0: "CC0",
+    pdm: "Public Domain",
+  };
+
+  function licenseLabel(license) {
+    if (!license) return "";
+    return LICENSE_NAMES[license.toLowerCase()] || license.toUpperCase();
+  }
+
+  function renderGalleryItem(img, index) {
+    const alt = img.alt_text || img.title || "Article photograph";
+    const credit = [
+      img.creator ? `Photo: ${escapeHtml(img.creator)}` : "",
+      img.license ? licenseLabel(img.license) : "",
+    ].filter(Boolean).join(" &middot; ");
+
+    const sourceLink = img.source
+      ? `<a href="${escapeHtml(img.source)}" target="_blank" rel="noopener noreferrer nofollow">source</a>`
+      : "";
+
+    return `
+      <figure class="gallery-item">
+        <button class="gallery-open" type="button" data-gallery-index="${index}"
+                aria-label="View ${escapeHtml(alt)}">
+          <img src="${escapeHtml(img.file_path)}" alt="${escapeHtml(alt)}" loading="lazy">
+        </button>
+        <figcaption>
+          <span class="gallery-caption">${escapeHtml(img.title || alt)}</span>
+          <span class="gallery-credit">${credit}${sourceLink ? " &middot; " + sourceLink : ""}</span>
+        </figcaption>
+      </figure>
+    `;
+  }
+
+  function renderGallery(images) {
+    if (!images || !images.length) return "";
+    return `
+      <section class="article-gallery">
+        <h2 class="gallery-heading">From the story</h2>
+        <div class="gallery-grid">${images.map(renderGalleryItem).join("")}</div>
+      </section>
+      <div class="gallery-lightbox" id="gallery-lightbox" hidden>
+        <button class="gallery-lightbox-close" type="button" aria-label="Close">&times;</button>
+        <button class="gallery-lightbox-nav gallery-lightbox-prev" type="button" aria-label="Previous">&#8249;</button>
+        <figure class="gallery-lightbox-figure">
+          <img id="gallery-lightbox-img" src="" alt="">
+          <figcaption id="gallery-lightbox-caption"></figcaption>
+        </figure>
+        <button class="gallery-lightbox-nav gallery-lightbox-next" type="button" aria-label="Next">&#8250;</button>
+      </div>
+    `;
+  }
+
+  let galleryLightboxState = null;
+
+  function bindGallery(root, images) {
+    const lightbox = $("#gallery-lightbox", root);
+    const tiles = $$("[data-gallery-index]", root);
+    if (!lightbox || !tiles.length || !images.length) return;
+
+    const img = $("#gallery-lightbox-img", lightbox);
+    const caption = $("#gallery-lightbox-caption", lightbox);
+
+    const state = { images, index: 0, dispose: null };
+
+    const show = index => {
+      const total = state.images.length;
+      const wrapped = ((index % total) + total) % total;
+      const item = state.images[wrapped];
+      state.index = wrapped;
+      img.src = item.file_path;
+      img.alt = item.alt_text || item.title || "Article photograph";
+      const bits = [
+        item.title || "",
+        item.creator ? `Photo: ${item.creator}` : "",
+        item.license ? licenseLabel(item.license) : "",
+        `${wrapped + 1} of ${total}`,
+      ].filter(Boolean);
+      caption.textContent = bits.join(" · ");
+    };
+
+    state.open = i => {
+      lightbox.hidden = false;
+      document.body.classList.add("gallery-open");
+      show(i);
+    };
+    state.close = () => {
+      lightbox.hidden = true;
+      document.body.classList.remove("gallery-open");
+      img.src = "";
+    };
+    state.step = delta => show(state.index + delta);
+
+    galleryLightboxState = state;
+
+    tiles.forEach(tile => {
+      tile.addEventListener("click", () => {
+        state.open(parseInt(tile.dataset.galleryIndex, 10) || 0);
+      });
+    });
+
+    $(".gallery-lightbox-close", lightbox).addEventListener("click", state.close);
+    $(".gallery-lightbox-prev", lightbox).addEventListener("click", () => state.step(-1));
+    $(".gallery-lightbox-next", lightbox).addEventListener("click", () => state.step(1));
+    lightbox.addEventListener("click", e => { if (e.target === lightbox) state.close(); });
+
+    const onKey = e => {
+      if (lightbox.hidden) return;
+      if (e.key === "Escape") state.close();
+      if (e.key === "ArrowLeft") state.step(-1);
+      if (e.key === "ArrowRight") state.step(1);
+    };
+    document.addEventListener("keydown", onKey);
+    // The page re-renders on every navigation, so drop the stale key handler.
+    state.dispose = () => document.removeEventListener("keydown", onKey);
+  }
+
+  /* ------------------------------------------------------------------ */
   /* Story Detail Page                                                  */
   /* ------------------------------------------------------------------ */
-  async function renderStoryDetail(params) {
+  async function renderStoryDetail(params, context) {
+    if (galleryLightboxState && galleryLightboxState.dispose) {
+      galleryLightboxState.dispose();
+      galleryLightboxState = null;
+    }
+
+    // Canonical form is /blog/<slug>. The numeric /stories/<id> URL still
+    // resolves, then upgrades itself in the address bar so only one URL per
+    // story is ever indexable.
+    const legacyId = params && params.id && !params.slug ? params.id : null;
+
+    let endpoint;
+    if (params && params.slug) {
+      endpoint = `/api/articles/slug/${encodeURIComponent(params.slug)}`;
+    } else if (legacyId) {
+      endpoint = `/api/articles/${encodeURIComponent(legacyId)}`;
+    } else {
+      showError("Story not found.");
+      return;
+    }
+
     showLoading("Loading story...");
     try {
-      const res = await fetch(`/api/articles/${params.id}`);
+      const res = await fetch(endpoint);
       if (!res.ok) throw new Error("Not found");
       const a = await res.json();
+
+      if (a.slug && params.slug !== a.slug) {
+        window.history.replaceState({}, "", articlePath(a));
+      }
+
+      const galleryRes = await fetch(`/api/articles/${a.id}/images`).catch(() => null);
+      const galleryImages = galleryRes && galleryRes.ok ? ((await galleryRes.json()).images || []) : [];
+
       const article = {
-        id: a.id, title: a.title, content: a.content,
+        id: a.id, slug: a.slug, title: a.title, content: a.content,
         author: { id: a.author_id, name: a.author_username, avatar: a.author_avatar || DEFAULT_AVATAR, bio: a.author_bio || "" },
-        category: a.category_name || "General", image: a.cover_image || DEFAULT_COVER,
+        category: a.category_name || "General", categorySlug: a.category_slug,
+        image: a.cover_image || DEFAULT_COVER,
         date: formatDate(a.published_at || a.created_at), readTime: readMins(a.content)
       };
 
+      // Related stories from the same topic, newest first. Fetched after the
+      // main render so a slow side request never delays the article itself.
+      let related = [];
+      if (article.categorySlug) {
+        try {
+          const relRes = await fetch(`/api/articles?category=${encodeURIComponent(article.categorySlug)}`);
+          if (relRes.ok) {
+            const relData = await relRes.json();
+            related = relData.articles
+              .filter(r => r.id !== article.id)
+              .slice(0, 3)
+              .map(r => ({
+                id: r.id, slug: r.slug, title: r.title,
+                excerpt: makeExcerpt(r.content, 120),
+                category: r.category_name || "General", categorySlug: r.category_slug,
+                image: r.cover_image || DEFAULT_COVER,
+                date: formatDate(r.published_at || r.created_at)
+              }));
+          }
+        } catch { /* related stories are optional */ }
+      }
+
+      const crumbs = [
+        { name: "Home", path: "/" },
+        { name: "Stories", path: "/stories" },
+        { name: article.category, path: article.categorySlug ? `/category/${article.categorySlug}` : "/stories" },
+        { name: article.title, path: articlePath(article) }
+      ];
+
+      if (SEO) {
+        SEO.applyArticle(
+          {
+            slug: article.slug,
+            title: article.title,
+            cover_image: article.image,
+            category_name: article.category,
+            category_slug: article.categorySlug,
+            published_at: a.published_at || a.created_at,
+            updated_at: a.updated_at,
+            word_count: (article.content || "").trim().split(/\s+/).length
+          },
+          { excerpt: plainText(article.content, 158), breadcrumb: crumbs }
+        );
+      }
+
       renderApp(`
         <article class="article-detail">
+          <nav class="breadcrumbs" aria-label="Breadcrumb">
+            <ol class="breadcrumbs-list">
+              ${crumbs.map((c, i) => {
+                const last = i === crumbs.length - 1;
+                return `<li class="breadcrumbs-item">${
+                  last
+                    ? `<span aria-current="page">${escapeHtml(c.name)}</span>`
+                    : `<a href="${c.path}">${escapeHtml(c.name)}</a><span class="breadcrumbs-sep" aria-hidden="true">/</span>`
+                }</li>`;
+              }).join("")}
+            </ol>
+          </nav>
           <div class="article-detail-header">
             <span class="article-detail-category">${article.category}</span>
             <h1 class="article-detail-title">${article.title}</h1>
             <div class="article-detail-meta">
-              <img class="avatar avatar-sm" src="${article.author.avatar}" alt="${article.author.name}">
+              <img class="avatar avatar-sm" src="${article.author.avatar}" alt="${article.author.name}" width="32" height="32" decoding="async">
               <div>
                 <span class="meta-author">${article.author.name}</span>
                 <span class="article-detail-date">${article.date} &middot; ${article.readTime} min read</span>
               </div>
             </div>
           </div>
-          <img class="article-detail-cover" src="${article.image}" alt="${article.title}">
+          ${article.image ? `<img class="article-detail-cover" src="${article.image}" alt="${escapeHtml(article.title)}" width="1200" height="675" fetchpriority="high" decoding="async">` : ""}
           <div class="article-detail-content">${formatContent(article.content)}</div>
+          ${renderGallery(galleryImages)}
           <div class="article-detail-footer">
             <div class="article-actions">
               <button class="btn btn-outline like-btn" data-id="${article.id}">&#9825; Like</button>
               <button class="btn btn-outline">&#9993; Share</button>
             </div>
           </div>
+          ${related.length ? `
+          <section class="related-section">
+            <h2 class="related-heading">More in ${escapeHtml(article.category)}</h2>
+            <div class="related-grid">
+              ${related.map(r => `
+                <article class="related-card">
+                  ${r.image ? `<a class="related-media" href="${articlePath(r)}" aria-label="${escapeHtml(r.title)}"><img src="${r.image}" alt="${escapeHtml(r.title)}" loading="lazy" decoding="async" width="400" height="300"></a>` : ""}
+                  <div class="related-body">
+                    <span class="related-category">${escapeHtml(r.category)}</span>
+                    <h3 class="related-title"><a href="${articlePath(r)}">${escapeHtml(r.title)}</a></h3>
+                    <p class="related-excerpt">${r.excerpt}</p>
+                    <p class="related-date">${r.date}</p>
+                  </div>
+                </article>
+              `).join("")}
+            </div>
+          </section>` : ""}
           <section class="comments-section">
             <h3 class="comments-heading">Comments</h3>
             <div class="comments-empty"><p>No comments yet.</p><p>Be the first to start the conversation.</p></div>
           </section>
         </article>
       `);
+
+      if (galleryImages.length) {
+        bindGallery(document.getElementById("app"), galleryImages);
+      }
     } catch (e) {
       showError("Story not found.");
     }
@@ -301,13 +610,16 @@
   /* Guest Posts Page                                                   */
   /* ------------------------------------------------------------------ */
   async function renderGuestPosts() {
+    // A submission explainer rather than a content page: it repeats the newest
+    // stories, so it stays out of the index and out of the sitemap.
+    seoNoindex("/guest-posts", "Submit a Guest Post | KaliNova");
     showLoading("Loading guest posts...");
     try {
       const res = await fetch("/api/articles");
       if (!res.ok) throw new Error("API error");
       const data = await res.json();
       const posts = data.articles.slice(0, 6).map(a => ({
-        id: a.id, title: a.title, excerpt: makeExcerpt(a.content, 150),
+        id: a.id, slug: a.slug, title: a.title, excerpt: makeExcerpt(a.content, 150),
         author: { name: a.author_username, avatar: a.author_avatar || DEFAULT_AVATAR },
         date: formatDate(a.published_at || a.created_at),
         status: a.status || "published"
@@ -338,10 +650,10 @@
             ${posts.map(p => `
               <article class="guest-post-card">
                 <div class="guest-post-status status-${p.status}">${p.status}</div>
-                <h3 class="guest-post-title">${p.title}</h3>
+                <h3 class="guest-post-title"><a href="${articlePath(p)}">${escapeHtml(p.title)}</a></h3>
                 <p class="guest-post-excerpt">${p.excerpt}</p>
                 <div class="guest-post-meta">
-                  <img class="avatar avatar-xs" src="${p.author.avatar}" alt="${p.author.name}">
+                  <img class="avatar avatar-xs" src="${p.author.avatar}" alt="${p.author.name}" width="24" height="24" loading="lazy" decoding="async">
                   <span class="meta-author">${p.author.name}</span>
                   <span class="meta-dot">&middot;</span>
                   <span>${p.date}</span>
@@ -360,14 +672,16 @@
   /* News Page                                                          */
   /* ------------------------------------------------------------------ */
   async function renderNews() {
+    seoPage("news");
     showLoading("Loading news...");
     try {
       const res = await fetch("/api/articles");
       if (!res.ok) throw new Error("API error");
       const data = await res.json();
       const articles = data.articles.slice(0, 8).map(a => ({
-        id: a.id, title: a.title, excerpt: makeExcerpt(a.content),
+        id: a.id, slug: a.slug, title: a.title, excerpt: makeExcerpt(a.content),
         author: { name: a.author_username, avatar: a.author_avatar || DEFAULT_AVATAR },
+        category: a.category_name || "General", categorySlug: a.category_slug,
         image: a.cover_image || DEFAULT_COVER,
         date: formatDate(a.published_at || a.created_at), readTime: readMins(a.content)
       }));
@@ -381,13 +695,13 @@
           <div class="news-grid">
             ${articles.map(a => `
               <article class="news-card">
-                <a class="news-card-media" href="#/stories/${a.id}"><img src="${a.image}" alt="${a.title}"></a>
+                <a class="news-card-media" href="${articlePath(a)}" aria-label="${escapeHtml(a.title)}"><img src="${a.image}" alt="${escapeHtml(a.title)}" loading="lazy" decoding="async" width="400" height="300"></a>
                 <div class="news-card-body">
                   <span class="news-card-date">${a.date}</span>
-                  <h3 class="news-card-title"><a href="#/stories/${a.id}">${a.title}</a></h3>
+                  <h3 class="news-card-title"><a href="${articlePath(a)}">${escapeHtml(a.title)}</a></h3>
                   <p class="news-card-excerpt">${a.excerpt}</p>
                   <div class="news-card-meta">
-                    <img class="avatar avatar-xxs" src="${a.author.avatar}" alt="${a.author.name}">
+                    <img class="avatar avatar-xxs" src="${a.author.avatar}" alt="${a.author.name}" width="20" height="20" loading="lazy" decoding="async">
                     <span class="meta-author">${a.author.name}</span>
                     <span class="meta-dot">&middot;</span>
                     <span>${a.readTime} min read</span>
@@ -421,11 +735,19 @@
       const catData = catRes.ok ? await catRes.json() : { categories: [] };
       const cat = catData.categories.find(c => c.slug === slug);
       if (!cat) {
+        if (SEO) {
+          SEO.applyPage("search", {
+            path: `/category/${slug}`,
+            title: "Topic not found | KaliNova",
+            description: "This topic does not exist on KaliNova.",
+            noindex: true
+          });
+        }
         return renderApp(`
           <div class="page-container">
             <div class="empty-state">
               <p class="empty-state-title">This category doesn't exist.</p>
-              <a class="btn btn-primary" href="#/">Back to home</a>
+              <a class="btn btn-primary" href="/">Back to home</a>
             </div>
           </div>
         `);
@@ -433,30 +755,46 @@
 
       const data = await artRes.json();
       const articles = data.articles.map(a => ({
-        id: a.id, title: a.title, excerpt: makeExcerpt(a.content),
+        id: a.id, slug: a.slug, title: a.title, excerpt: makeExcerpt(a.content),
         author: { name: a.author_username, avatar: a.author_avatar || DEFAULT_AVATAR },
+        category: a.category_name || "General", categorySlug: a.category_slug,
         image: a.cover_image || DEFAULT_COVER,
         date: formatDate(a.published_at || a.created_at), readTime: readMins(a.content)
       }));
 
+      if (SEO) SEO.applyCategory(cat, articles.length);
+
+      const crumbs = [
+        { name: "Home", path: "/" },
+        { name: "Stories", path: "/stories" },
+        { name: cat.name, path: `/category/${cat.slug}` }
+      ];
+
       renderApp(`
         <div class="page-container">
-          <a class="category-back-link" href="#/">&larr; All stories</a>
+          <nav class="breadcrumbs" aria-label="Breadcrumb">
+            <ol class="breadcrumbs-list">
+              <li class="breadcrumbs-item"><a href="/">Home</a><span class="breadcrumbs-sep" aria-hidden="true">/</span></li>
+              <li class="breadcrumbs-item"><a href="/stories">Stories</a><span class="breadcrumbs-sep" aria-hidden="true">/</span></li>
+              <li class="breadcrumbs-item"><span aria-current="page">${escapeHtml(cat.name)}</span></li>
+            </ol>
+          </nav>
+          <a class="category-back-link" href="/stories">&larr; All stories</a>
           <div class="page-header">
-            <h1 class="page-title">${cat.name}</h1>
-            ${cat.description ? `<p class="page-subtitle">${cat.description}</p>` : ""}
+            <h1 class="page-title">${escapeHtml(cat.name)}</h1>
+            ${cat.description ? `<p class="page-subtitle">${escapeHtml(cat.description)}</p>` : ""}
           </div>
           ${articles.length ? `
             <div class="news-grid">
               ${articles.map(a => `
                 <article class="news-card">
-                  <a class="news-card-media" href="#/stories/${a.id}"><img src="${a.image}" alt="${a.title}"></a>
+                  <a class="news-card-media" href="${articlePath(a)}" aria-label="${escapeHtml(a.title)}"><img src="${a.image}" alt="${escapeHtml(a.title)}" loading="lazy" decoding="async" width="400" height="300"></a>
                   <div class="news-card-body">
                     <span class="news-card-date">${a.date}</span>
-                    <h3 class="news-card-title"><a href="#/stories/${a.id}">${a.title}</a></h3>
+                    <h3 class="news-card-title"><a href="${articlePath(a)}">${escapeHtml(a.title)}</a></h3>
                     <p class="news-card-excerpt">${a.excerpt}</p>
                     <div class="news-card-meta">
-                      <img class="avatar avatar-xxs" src="${a.author.avatar}" alt="${a.author.name}">
+                      <img class="avatar avatar-xxs" src="${a.author.avatar}" alt="${a.author.name}" width="20" height="20" loading="lazy" decoding="async">
                       <span class="meta-author">${a.author.name}</span>
                       <span class="meta-dot">&middot;</span>
                       <span>${a.readTime} min read</span>
@@ -468,7 +806,7 @@
           ` : `
             <div class="empty-state">
               <p class="empty-state-title">Nothing here yet.</p>
-              <p>No stories in ${cat.name} so far.</p>
+              <p>No stories in ${escapeHtml(cat.name)} so far.</p>
             </div>
           `}
         </div>
@@ -482,6 +820,7 @@
   /* Portfolio Page                                                     */
   /* ------------------------------------------------------------------ */
   function renderPortfolio() {
+    seoNoindex("/portfolio", "Portfolio | KaliNova");
     if (!isLoggedIn()) {
       renderApp(`
         <div class="page-container">
@@ -562,6 +901,7 @@
   /* Marketplace Page                                                   */
   /* ------------------------------------------------------------------ */
   function renderMarketplace() {
+    seoNoindex("/marketplace", "Marketplace | KaliNova");
     renderApp(`
       <div class="page-container">
         <div class="page-header">
@@ -592,6 +932,7 @@
   /* CV Page                                                            */
   /* ------------------------------------------------------------------ */
   function renderCV() {
+    seoNoindex("/cv", "CV | KaliNova");
     if (!isLoggedIn()) {
       renderApp(`
         <div class="page-container">
@@ -661,18 +1002,20 @@
   /* Search Page                                                        */
   /* ------------------------------------------------------------------ */
   function renderSearch() {
-    const q = new URLSearchParams(window.location.hash.split("?")[1]).get("q") || "";
+    // Works for both /search?q= and the legacy #/search?q= form.
+    const q = Router.getQuery().get("q") || "";
+    seoNoindex("/search", q ? `Search results for "${q}" | KaliNova` : "Search — KaliNova");
     renderApp(`
       <div class="page-container">
         <div class="page-header">
           <h1 class="page-title">Search</h1>
-          <form class="search-page-form" id="search-page-form">
-            <input type="search" class="search-page-input" id="search-page-input" placeholder="Search articles, authors, topics, products..." value="${q}">
+          <form class="search-page-form" id="search-page-form" role="search" action="/search" method="get">
+            <input type="search" class="search-page-input" id="search-page-input" name="q" placeholder="Search articles, authors, topics, products..." value="${escapeHtml(q)}" aria-label="Search KaliNova">
             <button type="submit" class="btn btn-primary">Search</button>
           </form>
         </div>
-        <div class="search-page-results" id="search-page-results">
-          ${q ? `<p class="search-page-hint">Searching for "${q}"...</p>` : `<p class="search-page-hint">Enter a search term to find stories, authors, and more.</p>`}
+        <div class="search-page-results" id="search-page-results" aria-live="polite">
+          ${q ? `<p class="search-page-hint">Searching for "${escapeHtml(q)}"...</p>` : `<p class="search-page-hint">Enter a search term to find stories, authors, and more.</p>`}
         </div>
       </div>
     `);
@@ -684,7 +1027,11 @@
       form.addEventListener("submit", (e) => {
         e.preventDefault();
         const val = document.getElementById("search-page-input").value.trim();
-        if (val) performSearch(val);
+        if (val) {
+          // Keep ?q= in the address bar so a search can be shared and reloaded.
+          Router.navigate(`/search?q=${encodeURIComponent(val)}`);
+          performSearch(val);
+        }
       });
     }
   }
@@ -692,15 +1039,17 @@
   async function performSearch(query) {
     const results = document.getElementById("search-page-results");
     if (!results) return;
-    results.innerHTML = `<p class="search-page-hint">Searching for "${query}"...</p>`;
+    results.innerHTML = `<p class="search-page-hint">Searching for "${escapeHtml(query)}"...</p>`;
     try {
       const res = await fetch(`/api/articles?search=${encodeURIComponent(query)}`);
       if (!res.ok) throw new Error("API error");
       const data = await res.json();
       const articles = data.articles.map(a => ({
-        id: a.id, title: a.title, excerpt: makeExcerpt(a.content),
+        id: a.id, slug: a.slug, title: a.title, excerpt: makeExcerpt(a.content),
         author: { name: a.author_username, avatar: a.author_avatar || DEFAULT_AVATAR },
-        category: a.category_name || "General", date: formatDate(a.published_at || a.created_at),
+        category: a.category_name || "General", categorySlug: a.category_slug,
+        image: a.cover_image || DEFAULT_COVER,
+        date: formatDate(a.published_at || a.created_at),
         readTime: readMins(a.content)
       }));
 
@@ -724,6 +1073,7 @@
   /* Dashboard Page (authenticated)                                     */
   /* ------------------------------------------------------------------ */
   function renderDashboard() {
+    seoNoindex("/dashboard", "Dashboard | KaliNova");
 
     const session = getSession();
     const user = session.user || {};
@@ -748,23 +1098,23 @@
               <span class="action-icon">&#9997;</span>
               <span>Create Story</span>
             </button>
-            <button class="dashboard-action-btn" onclick="Router.navigate('#/portfolio')">
+            <button class="dashboard-action-btn" onclick="Router.navigate('/portfolio')">
               <span class="action-icon">&#128196;</span>
               <span>Create Portfolio</span>
             </button>
-            <button class="dashboard-action-btn" onclick="Router.navigate('#/marketplace')">
+            <button class="dashboard-action-btn" onclick="Router.navigate('/marketplace')">
               <span class="action-icon">&#128722;</span>
               <span>Add Product</span>
             </button>
-            <button class="dashboard-action-btn" onclick="Router.navigate('#/marketplace')">
+            <button class="dashboard-action-btn" onclick="Router.navigate('/marketplace')">
               <span class="action-icon">&#128188;</span>
               <span>Add Service</span>
             </button>
-            <button class="dashboard-action-btn" onclick="Router.navigate('#/cv')">
+            <button class="dashboard-action-btn" onclick="Router.navigate('/cv')">
               <span class="action-icon">&#128196;</span>
               <span>Edit CV</span>
             </button>
-            <button class="dashboard-action-btn" onclick="Router.navigate('#/settings')">
+            <button class="dashboard-action-btn" onclick="Router.navigate('/settings')">
               <span class="action-icon">&#9881;</span>
               <span>Settings</span>
             </button>
@@ -778,6 +1128,7 @@
   /* Profile Page                                                       */
   /* ------------------------------------------------------------------ */
   function renderProfile(params) {
+    seoNoindex(`/profile/${params && params.id ? params.id : ""}`, "Profile | KaliNova");
     renderApp(`
       <div class="page-container">
         <div class="profile-page">
@@ -816,6 +1167,7 @@
   /* Settings Page                                                      */
   /* ------------------------------------------------------------------ */
   function renderSettings() {
+    seoNoindex("/settings", "Settings | KaliNova");
     if (!isLoggedIn()) {
       renderApp(`
         <div class="page-container">
@@ -1385,6 +1737,28 @@ The future is still being written.`
   }
 
   function renderAbout() {
+    // The founder is named and titled on this page, which is what makes a
+    // Person node here accurate. No dates or social profiles are added,
+    // because the site does not publish any.
+    seoPage("about", {
+      breadcrumb: [
+        { name: "Home", path: "/" },
+        { name: "About", path: "/about" }
+      ],
+      extraSchema: [
+        {
+          "@type": "Person",
+          "@id": "https://kalinova.in/about#founder",
+          name: "Soumyadip Sasmal",
+          jobTitle: "Founder & Entrepreneur",
+          worksFor: { "@id": "https://kalinova.in/#organization" },
+          description:
+            "Soumyadip Sasmal is the founder of KaliNova, an independent " +
+            "publishing platform covering cinema, fashion, news, wildlife and travel."
+        }
+      ]
+    });
+
     renderApp(`
       <div class="about-page">
         <header class="about-hero">
@@ -1394,7 +1768,7 @@ The future is still being written.`
             <h1 class="about-hero-title">About Us</h1>
             <p class="about-hero-role">Soumyadip Sasmal — Founder &amp; Entrepreneur, KaliNova</p>
             <p class="about-hero-tagline">Every journey begins somewhere.</p>
-            <a href="#/category/latest-news" class="btn btn-primary">Read Our Stories</a>
+            <a href="/stories" class="btn btn-primary">Read Our Stories</a>
           </div>
         </header>
 
@@ -1424,6 +1798,13 @@ The future is still being written.`
   /* Careers                                                            */
   /* ------------------------------------------------------------------ */
   function renderCareers() {
+    seoPage("careers", {
+      breadcrumb: [
+        { name: "Home", path: "/" },
+        { name: "Careers", path: "/careers" }
+      ]
+    });
+
     renderApp(`
       <div class="page-container">
         <header class="page-header">
@@ -1443,28 +1824,172 @@ The future is still being written.`
   }
 
   /* ------------------------------------------------------------------ */
+  /* Services                                                           */
+  /* ------------------------------------------------------------------ */
+  // Every item below describes something the site actually does or already
+  // offers. Nothing is invented, and no pricing or delivery claims are made.
+  const SERVICES = [
+    {
+      title: "Long-form stories across six topics",
+      body: "KaliNova publishes in-depth writing on Bollywood, Tollywood, Fashion, Latest News, Wildlife and Travel. Each story is written to be read rather than skimmed, and stays on the site under a permanent URL."
+    },
+    {
+      title: "Topic pages that collect related writing",
+      body: "Every story is filed under a topic, and each topic has its own page. That makes it easy to follow one subject over time instead of hunting through a feed."
+    },
+    {
+      title: "Photo essays inside every story",
+      body: "Stories can carry an in-article photo essay alongside the text. Each image is credited to its creator and shown with its licence, so the photography is part of the reading experience rather than an afterthought."
+    },
+    {
+      title: "Publish from the browser",
+      body: "Writing is done in the browser and published straight away. There is no account to create and no separate CMS to learn, so a story goes from draft to published without leaving the site."
+    },
+    {
+      title: "Search across everything",
+      body: "The search page looks through story titles and bodies at once, so a specific article can be found by a keyword, a name or a phrase from the text."
+    },
+    {
+      title: "Guest posts and contributions",
+      body: "Readers and writers can submit a guest post. Submissions go through a review process before they are published, which is how outside writing gets onto KaliNova."
+    }
+  ];
+
+  function renderServices() {
+    seoPage("services", {
+      breadcrumb: [
+        { name: "Home", path: "/" },
+        { name: "Services", path: "/services" }
+      ]
+    });
+
+    renderApp(`
+      <div class="page-container">
+        <header class="page-header">
+          <h1 class="page-title">What KaliNova Offers</h1>
+          <p class="page-subtitle">Read. Write. Share. Everything KaliNova does, in one place.</p>
+        </header>
+        <div class="services-grid">
+          ${SERVICES.map(s => `
+            <article class="service-card">
+              <h2 class="service-title">${escapeHtml(s.title)}</h2>
+              <p class="service-body">${escapeHtml(s.body)}</p>
+            </article>
+          `).join("")}
+        </div>
+        <section class="services-cta">
+          <h2 class="services-cta-title">Want to write for KaliNova?</h2>
+          <p class="services-cta-body">Guest posts are welcome. Send a brief note and it will be reviewed before publication.</p>
+          <p class="services-cta-links">
+            <a class="btn btn-primary" href="/guest-posts">Submit a Guest Post</a>
+            <a class="btn btn-outline" href="/contact">Get in touch</a>
+          </p>
+        </section>
+      </div>
+    `);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Contact                                                            */
+  /* ------------------------------------------------------------------ */
+  function renderContact() {
+    seoPage("contact", {
+      breadcrumb: [
+        { name: "Home", path: "/" },
+        { name: "Contact", path: "/contact" }
+      ]
+    });
+
+    renderApp(`
+      <div class="page-container">
+        <header class="page-header">
+          <h1 class="page-title">Contact KaliNova</h1>
+          <p class="page-subtitle">Questions, corrections, guest posts or anything else — these are the best ways to reach us.</p>
+        </header>
+        <div class="contact-grid">
+          <article class="contact-card">
+            <h2 class="contact-title">Email</h2>
+            <p class="contact-body">For stories, corrections and guest post enquiries, email is the fastest way to reach the editor.</p>
+            <p class="contact-value"><a href="mailto:soumyadipsasmal88@gmail.com">soumyadipsasmal88@gmail.com</a></p>
+            <p class="contact-value"><a href="mailto:soumyadipsasmal10@gmail.com">soumyadipsasmal10@gmail.com</a></p>
+          </article>
+          <article class="contact-card">
+            <h2 class="contact-title">Phone</h2>
+            <p class="contact-body">For anything urgent, or if a message does not get a reply by email.</p>
+            <p class="contact-value"><a href="tel:+916290687215">+91 6290687215</a></p>
+          </article>
+          <article class="contact-card">
+            <h2 class="contact-title">Contribute</h2>
+            <p class="contact-body">Writers can submit a guest post. Every submission is reviewed before it is published.</p>
+            <p class="contact-value"><a href="/guest-posts">Submit a Guest Post</a></p>
+          </article>
+        </div>
+        <p class="contact-note">Corrections are welcome and are handled by the founder, Soumyadip Sasmal. Include the story title and the passage you are querying so it can be checked quickly.</p>
+      </div>
+    `);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Not found                                                          */
+  /* ------------------------------------------------------------------ */
+  function render404(path) {
+    seoPage("search", {
+      path: path || "/404",
+      title: "Page not found | KaliNova",
+      description: "That page does not exist on KaliNova. Browse the latest stories instead.",
+      noindex: true
+    });
+
+    renderApp(`
+      <div class="page-container">
+        <div class="empty-state">
+          <p class="empty-state-title">That page could not be found.</p>
+          <p class="empty-state-subtitle">The link may be out of date, or the page may have moved.</p>
+          <p class="page-not-found-links">
+            <a class="btn btn-primary" href="/">Back to home</a>
+            <a class="btn btn-outline" href="/stories">Browse all stories</a>
+            <a class="btn btn-outline" href="/search">Search</a>
+          </p>
+        </div>
+      </div>
+    `);
+  }
+
+  /* ------------------------------------------------------------------ */
   /* Register all routes                                                */
   /* ------------------------------------------------------------------ */
   window.KaliNovaPages = {
     renderHome, renderStories, renderStoryDetail, renderGuestPosts,
     renderNews, renderPortfolio, renderMarketplace, renderCV, renderSearch,
-    renderDashboard, renderProfile, renderSettings, renderCategory, renderAbout, renderCareers,
+    renderDashboard, renderProfile, renderSettings, renderCategory, renderAbout,
+    renderCareers, renderServices, renderContact, render404,
     renderGuestPostModal, renderCreateListingModal
   };
 
+  // Canonical, indexable routes.
   Router.register("/", renderHome);
   Router.register("/stories", renderStories);
-  Router.register("/stories/:id", renderStoryDetail);
-  Router.register("/guest-posts", renderGuestPosts);
   Router.register("/news", renderNews);
   Router.register("/category/:slug", renderCategory);
+  Router.register("/about", renderAbout);
+  Router.register("/services", renderServices);
+  Router.register("/contact", renderContact);
+  Router.register("/careers", renderCareers);
+
+  // Article detail. /blog/<slug> is canonical; /stories/<id> is the legacy
+  // numeric form and redirects itself to the slug.
+  Router.register("/blog/:slug", renderStoryDetail);
+  Router.register("/stories/:id", renderStoryDetail);
+
+  // Tool and account views — noindex, not in the sitemap.
+  Router.register("/guest-posts", renderGuestPosts);
+  Router.register("/search", renderSearch);
   Router.register("/portfolio", renderPortfolio);
   Router.register("/marketplace", renderMarketplace);
   Router.register("/cv", renderCV);
-  Router.register("/search", renderSearch);
   Router.register("/dashboard", renderDashboard);
   Router.register("/profile/:id", renderProfile);
   Router.register("/settings", renderSettings);
-  Router.register("/about", renderAbout);
-  Router.register("/careers", renderCareers);
+
+  Router.onNotFound(render404);
 })();

@@ -1,14 +1,36 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-IN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>KaliNova</title>
-<meta name="description" content="KaliNova is a publishing platform for developers, DevOps engineers, and technologists to read and share ideas.">
+
+<!-- This file is a legacy page that is no longer wired to the application: the
+     live topic pages are /category/<slug>, rendered by frontend/router.js and
+     frontend/pages.js. It is kept so existing links do not 404, and marked
+     noindex with a canonical pointing at the real stories index so it cannot
+     compete with it. -->
+<title>Stories by topic — KaliNova</title>
+<meta name="description" content="Stories on KaliNova by topic: Bollywood, Tollywood, Fashion, Latest News, Wildlife and Travel.">
+<meta name="robots" content="noindex, follow">
+<link rel="canonical" href="https://kalinova.in/stories">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/style.css">
+<style>
+  /* Redirect notice for anyone who still reaches this legacy page. */
+  .legacy-notice {
+    max-width: var(--content-max);
+    margin: 0 auto 28px;
+    padding: 20px 24px;
+    background: var(--accent-tint);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+  }
+  .legacy-notice p { color: var(--ink-soft); }
+  .legacy-notice-title { font-weight: 600; color: var(--ink); margin-bottom: 8px; }
+</style>
 </head>
 <body>
 
@@ -19,7 +41,7 @@
   <div class="header-inner">
     <div class="header-left">
       <a href="/" class="logo" aria-label="KaliNova home">
-        <img src="/assets/kalinova-logo.png" alt="KaliNova" class="logo-image">
+        <img src="/assets/kalinova-logo-96.png" alt="KaliNova" class="logo-image" width="96" height="32" decoding="async">
       </a>
     </div>
 
@@ -47,7 +69,7 @@
 
       <div class="user-menu" id="user-menu" hidden>
         <button class="avatar-btn" id="user-menu-btn" type="button" aria-haspopup="true" aria-expanded="false">
-          <img src="https://i.pravatar.cc/64?img=12" alt="" class="avatar avatar-sm">
+          <img src="/assets/article-meta.png" alt="" class="avatar avatar-sm">
         </button>
         <div class="user-menu-panel" id="user-menu-panel" hidden role="menu">
           <a href="#profile" role="menuitem">Profile</a>
@@ -83,6 +105,20 @@
 
 <!-- ============ MAIN ============ -->
 <main id="main-content">
+  <div class="legacy-notice">
+    <p class="legacy-notice-title">Topic pages have moved</p>
+    <p>This page is kept only so older links still work. Use the pages below instead.</p>
+    <p>
+      <a href="/stories">All stories</a> &middot;
+      <a href="/category/bollywood">Bollywood</a> &middot;
+      <a href="/category/tollywood">Tollywood</a> &middot;
+      <a href="/category/fashion">Fashion</a> &middot;
+      <a href="/category/latest-news">Latest News</a> &middot;
+      <a href="/category/wildlife">Wildlife</a> &middot;
+      <a href="/category/travel">Travel</a>
+    </p>
+  </div>
+
   <div class="layout">
 
     <!-- FEED -->
@@ -140,7 +176,7 @@
         <ul class="author-list" id="author-list"></ul>
       </section>
 
-      <p class="side-footnote">KaliNova &copy; 2026 &middot; Built for developers, by developers.</p>
+      <p class="side-footnote">KaliNova &copy; 2026 &middot; Read. Write. Share.</p>
     </aside>
 
   </div>
@@ -151,9 +187,9 @@
   <div class="footer-inner">
     <div class="footer-brand">
       <a href="/" class="footer-logo" aria-label="KaliNova home">
-        <img src="/assets/kalinova-logo.png" alt="KaliNova" class="footer-logo-image">
+        <img src="/assets/kalinova-logo-96.png" alt="KaliNova" class="footer-logo-image" width="84" height="28" loading="lazy" decoding="async">
       </a>
-      <p class="footer-tagline">KaliNova is a publishing platform for developers, DevOps engineers, and technologists to read, write, and share ideas.</p>
+      <p class="footer-tagline">KaliNova is an independent publishing platform for readers and writers, covering stories on cinema, fashion, news, wildlife and travel.</p>
       <p class="footer-motto">Read. Write. Share.</p>
     </div>
 
@@ -166,15 +202,18 @@
         <li><a href="/category/fashion">Fashion</a></li>
         <li><a href="/category/latest-news">Latest News</a></li>
         <li><a href="/category/wildlife">Wildlife</a></li>
+        <li><a href="/category/travel">Travel</a></li>
+        <li><a href="/stories">All stories</a></li>
       </ul>
     </nav>
 
     <nav class="footer-col" aria-label="Company">
       <h3 class="footer-heading">Company</h3>
       <ul class="footer-links">
-        <li class="footer-link-text">About</li>
-        <li class="footer-link-text">Contact</li>
-        <li class="footer-link-text">Careers</li>
+        <li><a href="/about">About</a></li>
+        <li><a href="/services">Services</a></li>
+        <li><a href="/careers">Careers</a></li>
+        <li><a href="/contact">Contact</a></li>
         <li class="footer-link-text">Privacy Policy</li>
         <li class="footer-link-text">Terms of Service</li>
       </ul>

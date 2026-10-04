@@ -14,6 +14,11 @@
   --accent:       #1F6B4F;
   --accent-dark:  #164F3A;
   --accent-tint:  #E8F1EC;
+  /* The accent green is for light surfaces. Cards such as .card-row have no
+     background of their own and sit on the dark body colour, so accents that
+     need to stay legible there use this lighter tint instead (7.3:1 on
+     --body-bg-dark). */
+  --accent-light: #5FBF92;
   --danger:       #B3432B;
 
   /* Body background (dark blue) and the light text tones needed only for
@@ -523,7 +528,7 @@ input:focus-visible,
 }
 .meta-author { font-weight: 600; color: var(--body-text-light); }
 .meta-dot { color: var(--border-strong); }
-.meta-read { font-family: var(--font-mono); font-size: 0.75rem; }
+.meta-read { font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent-light); }
 
 /* ==========================================================================
    Article row (recommended / latest)
@@ -754,9 +759,12 @@ input:focus-visible,
    Responsive
    ========================================================================== */
 @media (max-width: 980px) {
-  .layout { grid-template-columns: 1fr; gap: 48px; }
-  .sidebar { order: -1; }
-  .side-card { display: none; }
+.layout { grid-template-columns: 1fr; gap: 48px; }
+        /* The feed must stay above the sidebar on narrow screens: Featured
+           stories first, then Recommended, then Trending. Do not reintroduce
+           `order: -1` on .sidebar -- it pushed Trending above the featured
+           stories on phones and tablets. */
+        .side-card { display: none; }
   .side-card:first-child { display: block; }
   .featured-grid { grid-template-columns: 1fr; }
   .footer-inner { grid-template-columns: 1fr 1fr; }
@@ -769,11 +777,36 @@ input:focus-visible,
   .header-right .btn-text,
   .header-right .btn-ghost span { display: none; }
   .header-right { display: none; }
-  /* Topics move into the drawer on narrow screens so the logo keeps its row. */
-  .topic-nav { display: none; }
   .mobile-toggle { display: flex; }
   .header-inner { gap: 12px; }
   .logo-image { height: 28px; }
+
+  /* Topics stay visible on narrow screens. The header row wraps, so the chips
+     occupy their own full-width row directly under the hamburger. The padding
+     lives on the <ul> (the scroll box) rather than on .topic-nav, so the edge
+     fades line up with the scroll edges instead of the inset content. */
+  .topic-nav { display: block; order: 1; flex: 0 0 100%; width: 100%; position: relative; }
+  .topic-nav ul { padding: 8px 16px 10px; }
+  .topic-chip { padding: 5px 12px; font-size: 0.72rem; }
+
+  /* Edge fade hints. Each side only fades when there is more content that way;
+     script.js toggles .is-scroll-start / .is-scroll-end from the scroll
+     position, so the first chip is never permanently dimmed. */
+  .topic-nav::before,
+  .topic-nav::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 28px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+  .topic-nav::before { left: 0;  background: linear-gradient(to right, rgba(250,250,246,0.98), rgba(250,250,246,0)); }
+  .topic-nav::after  { right: 0; background: linear-gradient(to left,  rgba(250,250,246,0.98), rgba(250,250,246,0)); }
+  .topic-nav.is-scroll-start::before { opacity: 1; }
+  .topic-nav.is-scroll-end::after    { opacity: 1; }
 
   .card-row { grid-template-columns: 1fr; gap: 16px; padding: 22px 0; }
   .card-media-side { order: -1; aspect-ratio: 16/9; }
@@ -781,12 +814,26 @@ input:focus-visible,
   .layout { padding: 28px 16px 56px; }
   .page-container { padding: 28px 16px 56px; }
   .header-inner { padding: 0 16px; }
+  /* Two rows on mobile: logo + hamburger on row one, topic strip on row two.
+     height/padding-top are reset here because the shorthand above sets
+     padding-top to 0 and the base rule pins a fixed header height. */
+  .header-inner { flex-wrap: wrap; height: auto; row-gap: 0; padding-top: 8px; }
 
   .featured-grid { gap: 20px; }
   .card-featured .card-title { font-size: 1.15rem; }
 
-  .footer-inner { grid-template-columns: 1fr; gap: 32px; padding: 40px 16px 24px; }
-  .footer-bottom { flex-direction: column; align-items: center; text-align: center; padding: 20px 16px; }
+.footer-inner { grid-template-columns: 1fr 1fr; gap: 22px 16px; padding: 32px 16px 20px; }
+        /* Brand spans the full width; Topics then sits left and Company right
+           on one row instead of both stacking. Contact goes full width below
+           them so the long email addresses do not wrap mid-address. */
+        .footer-brand { grid-column: 1 / -1; }
+        .footer-col[aria-label="Contact"] { grid-column: 1 / -1; }
+        /* Keep the footer left-aligned and compact once the columns stack. */
+        .footer-heading { margin-bottom: 10px; }
+        .footer-links { gap: 8px; }
+        .footer-logo { margin-bottom: 12px; }
+        .footer-tagline { margin-bottom: 8px; }
+        .footer-bottom { flex-direction: column; align-items: flex-start; text-align: left; gap: 6px; padding: 16px; }
 }
 
 /* ==========================================================================
@@ -906,6 +953,29 @@ input:focus-visible,
   border-top: 1px solid var(--border);
   margin: 6px 0;
 }
+/* Inline phone / email in the drawer. Mono + muted so contact details read as
+   secondary to the company links above them. */
+/* Section heading inside the drawer, so the company links read as a labelled
+   group rather than a loose list. Mirrors .footer-heading. */
+.mobile-drawer-heading {
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-muted);
+  padding: 0 14px;
+  margin: 4px 0 2px;
+}
+.mobile-drawer-contact {
+  display: block;
+  padding: 7px 14px;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+  border-radius: var(--radius-sm);
+}
+.mobile-drawer-contact:hover { background: var(--accent-tint); color: var(--ink); }
 
 /* ==========================================================================
    Loading / Error / Empty states (SPA app container)
@@ -1108,6 +1178,130 @@ input:focus-visible,
   border-color: var(--body-text-light);
   color: var(--body-text-light);
 }
+/* ==========================================================================
+   Article gallery
+   ========================================================================== */
+.article-gallery { margin-top: 40px; }
+.gallery-heading {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 0 0 18px;
+  color: var(--body-text-light);
+}
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 14px;
+}
+.gallery-item {
+  margin: 0;
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+}
+.gallery-open {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: var(--border);
+  cursor: zoom-in;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+}
+.gallery-open img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.25s ease;
+}
+.gallery-open:hover img,
+.gallery-open:focus-visible img { transform: scale(1.04); }
+.gallery-open:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.gallery-item figcaption {
+  padding: 10px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.gallery-caption {
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: var(--ink);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.gallery-credit {
+  font-size: 0.7rem;
+  line-height: 1.4;
+  color: var(--ink-muted);
+}
+.gallery-credit a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+body.gallery-open { overflow: hidden; }
+.gallery-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(11, 31, 58, 0.94);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 32px 16px;
+}
+.gallery-lightbox[hidden] { display: none; }
+.gallery-lightbox-figure {
+  margin: 0;
+  max-width: min(1000px, 100%);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.gallery-lightbox-figure img {
+  max-width: 100%;
+  max-height: calc(100vh - 130px);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: var(--radius-md);
+  background: rgba(255,255,255,0.06);
+}
+.gallery-lightbox-figure figcaption {
+  font-size: 0.82rem;
+  color: var(--body-text-light-muted);
+  text-align: center;
+}
+.gallery-lightbox-close,
+.gallery-lightbox-nav {
+  border: 1px solid rgba(255,255,255,0.2);
+  background: rgba(255,255,255,0.08);
+  color: var(--body-text-light);
+  border-radius: 50%;
+  cursor: pointer;
+  line-height: 1;
+  flex: 0 0 auto;
+  transition: background 0.2s ease;
+}
+.gallery-lightbox-close:hover,
+.gallery-lightbox-nav:hover { background: rgba(255,255,255,0.2); }
+.gallery-lightbox-close { position: absolute; top: 18px; right: 18px; font-size: 1.7rem; width: 42px; height: 42px; }
+.gallery-lightbox-nav { font-size: 1.9rem; width: 48px; height: 48px; }
+.gallery-lightbox-close:focus-visible,
+.gallery-lightbox-nav:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 .comments-section { margin-top: 40px; }
 .comments-heading {
   font-family: var(--font-display);
@@ -1796,4 +1990,234 @@ input:focus-visible,
   .about-hero { flex-direction: column; align-items: flex-start; gap: 18px; }
   .about-hero-title { font-size: 1.9rem; }
   .founder-avatar-svg { width: 84px; height: 84px; }
+}
+
+/* ==========================================================================
+   Breadcrumbs
+   ========================================================================== */
+.breadcrumbs {
+  margin-bottom: 20px;
+  font-size: 0.8rem;
+}
+.breadcrumbs-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: var(--body-text-light-muted);
+}
+.breadcrumbs-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+}
+.breadcrumbs-item a {
+  color: var(--body-text-light-muted);
+  text-decoration: underline;
+  text-decoration-color: rgba(174, 187, 208, 0.4);
+  text-underline-offset: 2px;
+}
+.breadcrumbs-item a:hover { color: var(--body-text-light); }
+.breadcrumbs-item [aria-current="page"] {
+  color: var(--body-text-light);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 46ch;
+}
+.breadcrumbs-sep { color: var(--body-text-light-muted); opacity: 0.6; }
+
+/* ==========================================================================
+   Related stories (article detail)
+   ========================================================================== */
+.related-section { margin-top: 44px; }
+.related-heading {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--body-text-light);
+  margin-bottom: 18px;
+}
+.related-grid {
+  display: grid;
+  gap: 16px;
+}
+.related-card {
+  display: grid;
+  grid-template-columns: 132px 1fr;
+  background: var(--paper-raised);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+  transition: box-shadow 0.2s ease;
+}
+.related-card:hover { box-shadow: var(--shadow-pop); }
+.related-media {
+  display: block;
+  background: var(--border);
+  overflow: hidden;
+}
+.related-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  aspect-ratio: 4/3;
+  transition: transform 0.3s ease;
+}
+.related-card:hover .related-media img { transform: scale(1.04); }
+.related-body {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.related-category {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent);
+}
+.related-title {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.32;
+  color: var(--ink);
+}
+.related-title a:hover { text-decoration: underline; }
+.related-excerpt {
+  font-size: 0.82rem;
+  color: var(--ink-muted);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.related-date {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--ink-faint);
+  margin-top: auto;
+}
+
+/* ==========================================================================
+   Services page
+   ========================================================================== */
+.services-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+.service-card {
+  background: var(--paper-raised);
+  border-radius: var(--radius-md);
+  padding: 24px;
+  box-shadow: var(--shadow-card);
+}
+.service-title {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--ink);
+  margin-bottom: 10px;
+}
+.service-body {
+  font-size: 0.92rem;
+  line-height: 1.65;
+  color: var(--ink-muted);
+}
+.services-cta {
+  margin-top: 36px;
+  padding: 28px;
+  background: var(--paper-raised);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+.services-cta-title {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 8px;
+}
+.services-cta-body {
+  font-size: 0.92rem;
+  line-height: 1.65;
+  color: var(--ink-muted);
+  margin-bottom: 18px;
+}
+.services-cta-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* ==========================================================================
+   Contact page
+   ========================================================================== */
+.contact-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 20px;
+}
+.contact-card {
+  background: var(--paper-raised);
+  border-radius: var(--radius-md);
+  padding: 24px;
+  box-shadow: var(--shadow-card);
+}
+.contact-title {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 8px;
+}
+.contact-body {
+  font-size: 0.92rem;
+  line-height: 1.65;
+  color: var(--ink-muted);
+  margin-bottom: 14px;
+}
+.contact-value {
+  font-size: 0.9rem;
+  line-height: 1.9;
+  word-break: break-word;
+}
+.contact-value a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.contact-note {
+  margin-top: 28px;
+  max-width: 68ch;
+  font-size: 0.9rem;
+  line-height: 1.7;
+  color: var(--body-text-light-muted);
+}
+
+/* ==========================================================================
+   Not found (SPA view)
+   ========================================================================== */
+.page-not-found-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+@media (min-width: 620px) {
+  .related-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 620px) {
+  .related-card { grid-template-columns: 104px 1fr; }
+  .related-excerpt { display: none; }
 }
