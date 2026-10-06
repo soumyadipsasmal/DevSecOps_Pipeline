@@ -27,6 +27,41 @@ services:
       DB_PASSWORD: medium_pass
       JWT_SECRET: devsecops-development-secret
       ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:-change-this-in-production}
+      # Open-data integrations (Wikidata / Commons / OSM / RSS). All optional:
+      # every one has a working default in app/config.js, and an empty string
+      # from ${VAR:-} simply selects that default. CONTACT_EMAIL is the public
+      # contact address Wikimedia's API policy asks client software to send.
+      CONTACT_EMAIL: ${CONTACT_EMAIL:-}
+      SITE_URL: ${SITE_URL:-}
+      OSM_TILE_URL: ${OSM_TILE_URL:-}
+      GEOCODER_URL: ${GEOCODER_URL:-}
+      EXTERNAL_FETCH_TIMEOUT_MS: ${EXTERNAL_FETCH_TIMEOUT_MS:-}
+      # Open-data automatic safety switches + breaker tuning. Each one has a
+      # working default in app/config.js; an empty string selects the default.
+      ENABLE_WIKIDATA: ${ENABLE_WIKIDATA:-}
+      ENABLE_COMMONS: ${ENABLE_COMMONS:-}
+      ENABLE_MAPS: ${ENABLE_MAPS:-}
+      ENABLE_RSS: ${ENABLE_RSS:-}
+      CB_FAILURE_THRESHOLD: ${CB_FAILURE_THRESHOLD:-}
+      CB_WINDOW_MINUTES: ${CB_WINDOW_MINUTES:-}
+      CB_MIN_REQUESTS: ${CB_MIN_REQUESTS:-}
+      CB_FAILURE_RATE_PERCENT: ${CB_FAILURE_RATE_PERCENT:-}
+      CB_COOLDOWN_MS: ${CB_COOLDOWN_MS:-}
+      CB_MAX_COOLDOWN_MS: ${CB_MAX_COOLDOWN_MS:-}
+      CB_FORBIDDEN_DAILY_MAX: ${CB_FORBIDDEN_DAILY_MAX:-}
+      CB_EVENT_RETENTION_DAYS: ${CB_EVENT_RETENTION_DAYS:-}
+      NOMINATIM_HOURLY_LIMIT: ${NOMINATIM_HOURLY_LIMIT:-}
+      NOMINATIM_DAILY_LIMIT: ${NOMINATIM_DAILY_LIMIT:-}
+      WIKIDATA_HOURLY_LIMIT: ${WIKIDATA_HOURLY_LIMIT:-}
+      WIKIDATA_DAILY_LIMIT: ${WIKIDATA_DAILY_LIMIT:-}
+      COMMONS_HOURLY_LIMIT: ${COMMONS_HOURLY_LIMIT:-}
+      COMMONS_DAILY_LIMIT: ${COMMONS_DAILY_LIMIT:-}
+      RSS_HOURLY_LIMIT: ${RSS_HOURLY_LIMIT:-}
+      RSS_DAILY_LIMIT: ${RSS_DAILY_LIMIT:-}
+      RSS_MIN_INTERVAL_MS: ${RSS_MIN_INTERVAL_MS:-}
+      MAP_TILE_HEALTHCHECK_MS: ${MAP_TILE_HEALTHCHECK_MS:-}
+      MAP_TILE_HOURLY_LIMIT: ${MAP_TILE_HOURLY_LIMIT:-}
+      MAP_TILE_DAILY_LIMIT: ${MAP_TILE_DAILY_LIMIT:-}
 
     # Uploaded banners live in the image filesystem by default. Mount a volume
     # here so CMS images survive a rebuild in a deployed environment.
@@ -68,6 +103,13 @@ services:
       # every placement disabled with no publisher id, so a fresh volume is not
       # monetised.
       - ./database/schema-ad-placements.sql:/docker-entrypoint-initdb.d/10-ad-placements.sql:ro
+      # Open-data cache (Wikidata / Commons / Nominatim) and the reviewed RSS
+      # headline store. Both tables start empty; nothing is seeded.
+      - ./database/schema-external-data.sql:/docker-entrypoint-initdb.d/11-external-data.sql:ro
+      # Open-data automatic safety: per-service breaker state and the event log
+      # that records every automatic stop and every admin override. Empty at
+      # first boot; each service writes its row the first time it is used.
+      - ./database/schema-integration-safety.sql:/docker-entrypoint-initdb.d/12-integration-safety.sql:ro
 
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U medium_user -d medium_clone"]

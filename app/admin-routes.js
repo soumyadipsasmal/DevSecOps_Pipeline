@@ -20,6 +20,7 @@ const express = require("express");
 
 const adminService = require("./admin-service");
 const adsRoutes = require("./admin-ads-routes");
+const integrationsRoutes = require("./admin-integrations-routes");
 const config = require("./config");
 const security = require("./security");
 const views = require("./admin-views");
@@ -238,6 +239,9 @@ articleRoutes.registerPages(adminPages);
 // Ads & Monetization screens. Same chain, same guards.
 adsRoutes.registerPages(adminPages);
 
+// Integrations & automatic safety screens. Same chain, same guards.
+integrationsRoutes.registerPages(adminPages);
+
 // Anything else under /admin is a genuine 404, not the public 404 page.
 adminPages.use((req, res) => {
   res.status(404).type("html").send(views.renderNotFoundPage({ csrfToken: req.csrfToken }));
@@ -314,6 +318,9 @@ articleRoutes.registerApi(adminApi);
 
 // Ads & Monetization JSON endpoints, before the 404 handler.
 adsRoutes.registerApi(adminApi);
+
+// Integrations & safety JSON endpoints, before the 404 handler.
+integrationsRoutes.registerApi(adminApi);
 
 adminApi.use((req, res) => {
   res.status(404).json({ error: "Not found" });

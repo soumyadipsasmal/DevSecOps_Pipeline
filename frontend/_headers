@@ -37,7 +37,13 @@
   # public surface relies on this file plus a reverse proxy. If you put the
   # Express app directly in front of readers, it has to send an equivalent
   # public policy of its own.
-  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data:; connect-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'
+  #
+  # MAP TILES: img-src also allows the OpenStreetMap tile host, because the
+  # Travel destination map loads raster tiles as <img> elements. Leaflet itself
+  # is vendored under /vendor/leaflet (script-src stays 'self'), and tiles are
+  # the only new outbound origin in the policy. Self-hosted tile servers just
+  # need OSM_TILE_URL set and this host entry updated to match.
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https://*.tile.openstreetmap.org; connect-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'
 
 # Fingerprinted-by-content assets are not fingerprinted here, so keep the cache
 # short and revalidate. Static files are served straight from disk.

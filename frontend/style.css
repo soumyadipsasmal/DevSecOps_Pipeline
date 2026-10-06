@@ -2553,3 +2553,227 @@ body.gallery-open { overflow: hidden; }
   .related-card { grid-template-columns: 104px 1fr; }
   .related-excerpt { display: none; }
 }
+
+/* ==========================================================================
+   Open-data sections (destination map + reviewed web headlines)
+   Added by /assets/open-data.js after the page renders. These sections only
+   exist when their endpoint answered, so every rule here styles real content
+   and nothing needs a placeholder or error state.
+   ========================================================================== */
+.open-data-section {
+  margin-top: 40px;
+  padding-top: 28px;
+  border-top: 1px solid var(--border);
+}
+
+.open-data-header {
+  margin-bottom: 18px;
+}
+
+.open-data-title {
+  margin: 0 0 6px;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.open-data-note {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: var(--ink-muted);
+}
+
+.open-data-note a {
+  color: var(--accent-dark);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* --- Destination cards --- */
+
+.destination-cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+@media (min-width: 720px) {
+  .destination-cards { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+}
+
+.destination-card {
+  background: var(--paper-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 18px;
+  box-shadow: var(--shadow-card);
+}
+
+.destination-name {
+  margin: 0 0 4px;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.destination-region {
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+}
+
+.destination-blurb {
+  margin: 0 0 10px;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+
+.destination-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+}
+
+.destination-chip {
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  background: var(--accent-tint);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+
+.destination-source {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--accent-dark);
+  text-decoration: none;
+}
+
+.destination-source:hover,
+.destination-source:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* --- Map --- */
+
+.travel-map-wrap { position: relative; }
+
+.travel-map {
+  height: 360px;
+  width: 100%;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--paper);
+}
+
+.travel-map[hidden] { display: none; }
+
+.travel-map-status {
+  margin: 0;
+  padding: 18px 0;
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+}
+
+/* Text-destination fallback: shown while map tiles are unavailable or the
+   maps feature is switched off, so the travel section stays readable. */
+.travel-index {
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  border-top: 1px solid var(--border-strong);
+  padding-top: 18px;
+}
+
+.travel-index-entry {
+  padding: 14px 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+}
+
+.travel-index-entry .destination-name { margin: 0 0 4px; }
+.travel-index-entry .destination-region { margin: 0 0 8px; }
+
+@media (max-width: 620px) {
+  .travel-map { height: 280px; }
+}
+
+/* --- Headline strip --- */
+
+.headline-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.headline-item {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.headline-item:last-child { border-bottom: 0; }
+
+.headline-title {
+  display: inline-block;
+  font-family: var(--font-display);
+  font-size: 1.02rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.headline-title:hover,
+.headline-title:focus-visible {
+  color: var(--accent-dark);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* The external arrow makes it obvious the reader is leaving for the
+   publisher's site, which is exactly where a full article lives. */
+.headline-title::after {
+  content: " \2197";
+  font-size: 0.78em;
+  color: var(--ink-faint);
+}
+
+.headline-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+  font-size: 0.76rem;
+  color: var(--ink-faint);
+}
+
+.headline-source {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent-dark);
+}
+
+.headline-excerpt {
+  margin: 6px 0 0;
+  max-width: 72ch;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--ink-muted);
+}

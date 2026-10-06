@@ -30,6 +30,28 @@ COPY app/ads-service.js .
 COPY app/admin-ads-views.js .
 COPY app/admin-ads-routes.js .
 
+# Open-data integrations (Wikidata / Commons / OSM / RSS). Same rule as the
+# ads modules above: each file is listed explicitly, so a forgotten module
+# fails the build instead of missing at run time.
+COPY app/external-http.js .
+COPY app/external-cache.js .
+COPY app/external-routes.js .
+COPY app/wikidata-service.js .
+COPY app/media-service.js .
+COPY app/geo-service.js .
+COPY app/travel-destinations.js .
+COPY app/feed-parser.js .
+COPY app/rss-feeds.js .
+COPY app/rss-service.js .
+# Automatic open-data safety (Phase 2): circuit breakers, background jobs,
+# tile health and licence re-checks. Listed explicitly, same rule as above.
+COPY app/circuit-breaker.js .
+COPY app/background-jobs.js .
+COPY app/map-health.js .
+COPY app/license-audit.js .
+COPY app/admin-integrations-routes.js .
+COPY app/admin-integrations-views.js .
+
 COPY database /database
 
 COPY scripts/topic-images.tsv /seed-data/topic-images.tsv

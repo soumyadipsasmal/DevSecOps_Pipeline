@@ -105,6 +105,7 @@ function adminNav({ active, csrfToken, includeLogout }) {
         ${item("Articles", "/admin/articles", "articles")}
         ${item("New Article", "/admin/articles/new", "new-article")}
         ${item("Ads & Monetization", "/admin/ads", "ads")}
+        ${item("Integrations", "/admin/integrations", "integrations")}
         ${pending("Categories")}
         ${logout}
       </ul>

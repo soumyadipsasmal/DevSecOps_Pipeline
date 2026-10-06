@@ -8,6 +8,7 @@ const pool = require("./db");
 const adsService = require("./ads-service");
 const security = require("./security");
 const { adminApi, adminPages } = require("./admin-routes");
+const { externalApi } = require("./external-routes");
 
 const app = express();
 const PORT = process.env.PORT || config.port;
@@ -54,6 +55,12 @@ app.use(express.static(path.join(__dirname, "../frontend")));
 // session; there is no public registration and no public write path.
 app.use("/admin", adminPages);
 app.use("/api/admin", adminApi);
+
+// Open-data API (Wikidata, Wikimedia Commons, OpenStreetMap, reviewed RSS).
+// Mounted under /api alongside the article endpoints: read-only, rate limited,
+// and registered before the SPA fallback so /api/* never falls through to the
+// HTML shell.
+app.use("/api", externalApi);
 
 // Home page
 app.get("/", (req, res) => {
@@ -345,6 +352,7 @@ app.get("/api/articles/:id/images", async (req, res) => {
             JOIN articles ON articles.id = article_images.article_id
             WHERE article_images.article_id = $1
               AND articles.status = 'published'
+              AND article_images.source NOT LIKE 'HIDDEN:%'
             ORDER BY article_images.position ASC
         `, [id]);
 
@@ -533,6 +541,19 @@ app.use((err, req, res, next) => {
 // container still starts the listener directly.
 
 if (require.main === module) {
+    // Automatic open-data safety only starts when the real server boots.
+    // Test runners mount the app without starting timers or probing upstreams.
+    try {
+        const circuit = require("./circuit-breaker");
+        const mapHealth = require("./map-health");
+        const licenseAudit = require("./license-audit");
+        circuit.startSweeper();
+        mapHealth.start();
+        licenseAudit.start();
+    } catch (error) {
+        console.error("Failed to start background safety jobs:", error.message);
+    }
+
     app.listen(PORT, "0.0.0.0", () => {
         console.log(`Server running on port ${PORT}`);
     });

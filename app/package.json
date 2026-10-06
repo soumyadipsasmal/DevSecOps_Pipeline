@@ -9,13 +9,15 @@
     "create-admin": "node create-admin.js",
     "seed:images": "node seed-images.js",
     "sitemap": "node ../scripts/generate-sitemap.js",
-    "test": "node tests/seo-smoke-test.js && node tests/admin-auth-test.js && node tests/cms-test.js && node tests/admin-ads-test.js && node tests/ads-test.js && node tests/admin-smoke-test.js",
+    "test": "node tests/seo-smoke-test.js && node tests/admin-auth-test.js && node tests/cms-test.js && node tests/admin-ads-test.js && node tests/ads-test.js && node tests/admin-smoke-test.js && node tests/circuit-breaker-test.js && node tests/external-test.js",
     "test:seo": "node tests/seo-smoke-test.js",
     "test:admin": "node tests/admin-auth-test.js",
     "test:cms": "node tests/cms-test.js",
     "test:admin:ads": "node tests/admin-ads-test.js",
     "test:ads": "node tests/ads-test.js",
-    "test:admin:live": "node tests/admin-smoke-test.js"
+    "test:admin:live": "node tests/admin-smoke-test.js",
+    "test:cb": "node tests/circuit-breaker-test.js",
+    "test:external": "node tests/external-test.js"
   },
   "keywords": [],
   "author": "",

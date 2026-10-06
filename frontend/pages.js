@@ -939,6 +939,11 @@
           </div>
         </div>
       `);
+
+      // Reviewed RSS headline strip. Optional decoration: it appends itself
+      // below the grid when the endpoint answers, and is never rendered at
+      // all when it does not, so this page cannot fail because of it.
+      if (window.KaliNovaOpenData) window.KaliNovaOpenData.hydrateNewsHeadlines();
     } catch (e) {
       showError("Failed to load news.");
     }
@@ -1072,6 +1077,14 @@
           `}
         </div>
       `);
+
+      // The destination map is a Travel-only decoration: configured
+      // destinations, coordinates geocoded once by the server, and a
+      // vendored Leaflet map. Silent when the open-data component or its
+      // endpoint is unavailable.
+      if (slug === "travel" && window.KaliNovaOpenData) {
+        window.KaliNovaOpenData.hydrateTravelMap();
+      }
     } catch (e) {
       showError("Failed to load this category.");
     }
