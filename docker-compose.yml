@@ -8,16 +8,30 @@ services:
     container_name: devsecops-app
 
     ports:
-      - "3007:3007"
+      - "${APP_PORT:-3007}:3007"
 
+    # The admin session secret is read from your shell or from a .env file next
+    # to docker-compose.yml, never from this file. The placeholder below exists
+    # only so `docker compose up` works locally; it is under the 32 characters
+    # the app requires in production, so a deployment that forgets to set a real
+    # value refuses to start instead of signing cookies with a known key.
+    #
+    #   node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
     environment:
       PORT: 3007
+      # Inside the compose network the database is always reachable as "db:5432".
       DB_HOST: db
       DB_PORT: 5432
       DB_NAME: medium_clone
       DB_USER: medium_user
       DB_PASSWORD: medium_pass
       JWT_SECRET: devsecops-development-secret
+      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:-change-this-in-production}
+
+    # Uploaded banners live in the image filesystem by default. Mount a volume
+    # here so CMS images survive a rebuild in a deployed environment.
+    volumes:
+      - uploads:/frontend/assets/uploads
 
     depends_on:
       db:
@@ -33,8 +47,11 @@ services:
       POSTGRES_USER: medium_user
       POSTGRES_PASSWORD: medium_pass
 
+    # Published for local tooling (psql, migrations run outside the container).
+    # app/.env must use this same host port. Override with DB_HOST_PORT if 5434
+    # is already taken on your machine.
     ports:
-        - "5434:5432"
+        - "${DB_HOST_PORT:-5434}:5432"
 
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -45,6 +62,12 @@ services:
       - ./database/schema-article-images.sql:/docker-entrypoint-initdb.d/05-article-images.sql:ro
       - ./database/fix-article-categories.sql:/docker-entrypoint-initdb.d/06-fix-categories.sql:ro
       - ./database/seed-editorial-2026.sql:/docker-entrypoint-initdb.d/07-seed-editorial-2026.sql:ro
+      - ./database/schema-admin-auth.sql:/docker-entrypoint-initdb.d/08-admin-auth.sql:ro
+      - ./database/schema-article-cms.sql:/docker-entrypoint-initdb.d/09-article-cms.sql:ro
+      # Ad placements and monetization settings. Creates two tables and seeds
+      # every placement disabled with no publisher id, so a fresh volume is not
+      # monetised.
+      - ./database/schema-ad-placements.sql:/docker-entrypoint-initdb.d/10-ad-placements.sql:ro
 
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U medium_user -d medium_clone"]
@@ -54,3 +77,4 @@ services:
 
 volumes:
   postgres_data:
+  uploads:

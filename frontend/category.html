@@ -125,7 +125,6 @@
     <div class="feed">
 
       <div class="category-page-header">
-        <a class="category-back-link" href="/">&larr; All stories</a>
         <h1 class="category-page-title" id="category-page-title">Loading&hellip;</h1>
       </div>
 
@@ -354,35 +353,9 @@
   </div>
 </div>
 
-<!-- Write / create-article modal -->
-<div class="modal-overlay" id="write-modal" hidden>
-  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="write-modal-title">
-    <div class="modal-header">
-      <h2 id="write-modal-title">Write a story</h2>
-      <button type="button" class="icon-btn modal-close" id="write-modal-close" aria-label="Close">
-        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
-      </button>
-    </div>
-    <form id="write-form" novalidate>
-      <div class="modal-field">
-        <label for="write-title">Title</label>
-        <input type="text" id="write-title" name="title" required>
-      </div>
-      <div class="modal-field">
-        <label for="write-category">Category</label>
-        <select id="write-category" name="category_id"></select>
-      </div>
-      <div class="modal-field">
-        <label for="write-content">Content</label>
-        <textarea id="write-content" name="content" rows="10" required></textarea>
-      </div>
-      <p class="modal-error" id="write-error" hidden></p>
-      <div class="modal-actions">
-        <button type="submit" class="btn btn-primary">Save draft</button>
-      </div>
-    </form>
-  </div>
-</div>
+<!-- There is no write modal here. The public site has no accounts, and articles
+     are written by administrators from /admin/dashboard; POST /api/articles is
+     guarded on the server. -->
 
 <script src="/script.js"></script>
 </body>

@@ -6,6 +6,37 @@
   X-Frame-Options: SAMEORIGIN
   Permissions-Policy: geolocation=(), microphone=(), camera=(), interest-cohort=()
   # The page must work whether or not the Google Fonts stylesheet loads.
+  #
+  # This policy is intentionally closed: it allows only same-origin scripts and
+  # no third-party connections, so no ad or analytics request can leave the
+  # reader's browser on the current deployment.
+  #
+  # ADS / ADSENSE ARE NOT YET ENABLED. The site ships with no publisher ID and
+  # no slot IDs, so nothing to serve. If you switch ads on in
+  # /admin/ads, this policy has to be widened in the same deploy, or the ad
+  # script will be blocked and the reserved slot space will stay empty. The
+  # exact directives to add are:
+  #
+  #   script-src  += https://pagead2.googlesyndication.com
+  #                 https://googleads.g.doubleclick.net
+  #   img-src     += https: data: https://*.googlesyndication.com
+  #                 https://*.doubleclick.net https://*.google.com
+  #   connect-src += https://googleads.g.doubleclick.net
+  #                 https://pagead2.googlesyndication.com
+  #                 https://csi.gstatic.com
+  #   frame-src   += https://googleads.g.doubleclick.net
+  #                 https://tpc.googlesyndication.com
+  #                 https://www.google.com
+  #   child-src   += https://googleads.g.doubleclick.net
+  #
+  # Keep 'self' first in every list, and do not add 'unsafe-inline' or 'unsafe-eval':
+  # AdSense does not need either, and both would undo the point of the policy.
+  #
+  # Scope: this file is Cloudflare Pages / Netlify. The Express app in app/ sends
+  # its own stricter policy from app/config.js (adminCsp) for /admin only; the
+  # public surface relies on this file plus a reverse proxy. If you put the
+  # Express app directly in front of readers, it has to send an equivalent
+  # public policy of its own.
   Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data:; connect-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'
 
 # Fingerprinted-by-content assets are not fingerprinted here, so keep the cache

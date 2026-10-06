@@ -146,5 +146,58 @@ check("no sameAs/social profiles", !all.includes("sameAs"));
 check("no fake rating value", !/"ratingValue"|"reviewCount"/.test(all));
 check("no localhost anywhere in seo.js", !fs.readFileSync(path.join(REPO, "frontend/seo.js"), "utf8").includes("localhost"));
 
+console.log("\n[6] Blog listing page and its legacy alias");
+SEO.applyPage("blog");
+const blogCanonical = head.querySelector('link[rel="canonical"]').getAttribute("href");
+check("/blog canonical", blogCanonical === "https://kalinova.in/blog", blogCanonical);
+check("/blog indexable", metaContent("robots").startsWith("index"), metaContent("robots"));
+check("/blog not noindex", metaContent("robots") !== "noindex, follow");
+// /stories renders the same listing but must not compete with /blog.
+SEO.applyPage("stories");
+check(
+  "/stories canonicalises to /blog",
+  head.querySelector('link[rel="canonical"]').getAttribute("href") === "https://kalinova.in/blog"
+);
+
+console.log("\n[7] Route table covers /blog");
+const pagesSrc = fs.readFileSync(path.join(REPO, "frontend/pages.js"), "utf8");
+const routerSrc = fs.readFileSync(path.join(REPO, "frontend/router.js"), "utf8");
+check("/blog route registered", /Router\.register\(\s*"\/blog"\s*,/.test(pagesSrc));
+check("/blog/:slug route still registered", /Router\.register\(\s*"\/blog\/:slug"\s*,/.test(pagesSrc));
+check("/stories route still registered", /Router\.register\(\s*"\/stories"\s*,/.test(pagesSrc));
+check("/category/:slug route still registered", /Router\.register\(\s*"\/category\/:slug"\s*,/.test(pagesSrc));
+const serverSrc = fs.readFileSync(path.join(REPO, "app/server.js"), "utf8");
+check("server serves bare /blog", serverSrc.includes("/^\\/blog\\/?$/"), "SPA_ROUTES entry for /blog missing");
+check("router doc mentions /blog", /\/blog,/.test(routerSrc));
+
+console.log("\n[8] Static sitemap");
+const sitemapPath = path.join(REPO, "frontend/sitemap.xml");
+check("frontend/sitemap.xml exists", fs.existsSync(sitemapPath));
+if (fs.existsSync(sitemapPath)) {
+  const xml = fs.readFileSync(sitemapPath, "utf8");
+  const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map(m => m[1]);
+
+  check("xml declaration present", xml.startsWith('<?xml version="1.0" encoding="UTF-8"?>'));
+  check("urlset namespace correct", xml.includes('xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"'));
+  check("urlset closed", xml.trimEnd().endsWith("</urlset>"));
+  check("loc count equals url count", (xml.match(/<url>/g) || []).length === locs.length);
+  check("no duplicate URLs", new Set(locs).size === locs.length, `${locs.length} locs, ${new Set(locs).size} unique`);
+  check("no localhost URLs", !locs.some(l => /localhost|127\.0\.0\.1/.test(l)));
+  check("all URLs use production domain", locs.every(l => l.startsWith("https://kalinova.in/")));
+  check("no trailing-slash-only duplicates", locs.filter(l => l === "https://kalinova.in/blog").length === 1);
+  check("homepage listed", locs.includes("https://kalinova.in/"));
+  check("/blog listed", locs.includes("https://kalinova.in/blog"));
+  check("/news listed", locs.includes("https://kalinova.in/news"));
+  check("/about listed", locs.includes("https://kalinova.in/about"));
+  check("all six topics listed", ["bollywood", "tollywood", "fashion", "latest-news", "wildlife", "travel"]
+    .every(s => locs.includes(`https://kalinova.in/category/${s}`)));
+  check("article URLs listed", locs.some(l => l.startsWith("https://kalinova.in/blog/")));
+  check("/stories excluded (canonicalises to /blog)", !locs.includes("https://kalinova.in/stories"));
+  check("no noindex tool pages listed", !locs.some(l => /\/(search|dashboard|settings|cv|portfolio|marketplace|profile)(\/|$|\?)/.test(l)));
+
+  // Every article the database knows about must appear in the sitemap.
+  check("sitemap no longer generated per request", !/app\.get\("\/sitemap\.xml"/.test(serverSrc));
+}
+
 console.log(`\n${failures === 0 ? "ALL CHECKS PASSED" : failures + " CHECK(S) FAILED"}`);
 process.exit(failures === 0 ? 0 : 1);

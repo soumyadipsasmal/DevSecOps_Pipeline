@@ -5,6 +5,21 @@
 (() => {
   "use strict";
 
+  // The sidebar's social, newsletter and promo blocks. Kept in their own file
+  // so both the homepage and the category pages can drop the same markup in.
+  const Sidebar = window.KaliNovaSidebar || { extra: () => "", bind: () => {} };
+
+  // The ad component is optional at runtime: on a site that is not monetised, or
+  // before the manifest has loaded, the fallback makes every call below return
+  // an empty string, so the templates carry no ad markup and no empty boxes.
+  const AdSlot = window.KaliNovaAds || {
+    placeholder: () => "",
+    inArticle: () => null,
+    positionOf: () => null,
+    hydrate: () => Promise.resolve(false),
+    ready: () => Promise.resolve({ enabled: false, ads: [] })
+  };
+
   const DEFAULT_AVATAR = "/assets/article-meta.png";
   // Articles may be published without a cover image. When that happens the
   // media block is dropped entirely rather than filled with a placeholder.
@@ -13,8 +28,9 @@
   function $(sel, root = document) { return root.querySelector(sel); }
   function $$(sel, root = document) { return Array.from(root.querySelectorAll(sel)); }
 
-  // There are no user accounts. The site author owns the profile, dashboard
-  // and settings views, so those always render without a signed-in check.
+  // The public site has no accounts: the site author owns the profile,
+  // dashboard and settings views, so those always render without a signed-in
+  // check. Story writing is administrator-only and lives in /admin/dashboard.
   function isLoggedIn() { return true; }
 
   // Drop cover images that resolved to an empty source, along with the
@@ -53,8 +69,10 @@
     return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   }
 
-  function readMins(content) {
-    return Math.max(1, Math.ceil(content.trim().split(/\s+/).length / 200));
+  function readMins(content, bodyFormat) {
+    // An HTML body would otherwise be counted with its tags as words.
+    const text = bodyText(content, bodyFormat);
+    return Math.max(1, Math.ceil(text.trim().split(/\s+/).filter(Boolean).length / 200));
   }
 
   function escapeHtml(str) {
@@ -92,8 +110,86 @@
       .join("");
   }
 
-  function makeExcerpt(content, max = 200) {
-    const text = String(content || "")
+  /* An article written through the admin CMS arrives as body_format "html".
+     The server stored it after running it through the same allowlist used by
+     the editor (article-html.sanitizeBody), so scripts, iframes, style
+     attributes, event handlers and unsafe URL schemes are already gone and the
+     markup can be inserted as-is. Rows that predate the CMS keep body_format
+     "text" and continue to go through formatContent() above, which escapes
+     everything.
+     The browser, not this file, is the last line of defence: an element that is
+     never allowed can never arrive here. */
+  function renderBody(content, bodyFormat) {
+    if (!content) return "";
+    return bodyFormat === "html" ? String(content) : formatContent(content);
+  }
+
+  /** Top-level block count of a body, used to resolve an in-content position. */
+  function articleBlockCount(content, bodyFormat) {
+    const html = renderBody(content, bodyFormat);
+    if (!html) return 0;
+
+    const holder = document.createElement("div");
+    holder.innerHTML = html;
+    return holder.children.length;
+  }
+
+  /**
+   * The article body, with an optional in-content ad between two blocks.
+   *
+   * The ad is inserted between top-level blocks of the already-rendered body,
+   * never inside one: the DOM is built first and the slot is then moved in after
+   * the chosen element. Nothing is split, so a paragraph cannot be cut in half by
+   * a percentage calculation.
+   *
+   * Returns the plain body unchanged when there is no ad to place, which is the
+   * normal case on a site that is not monetised.
+   */
+  function renderArticleContent(content, bodyFormat, inContentMarkup) {
+    const html = renderBody(content, bodyFormat);
+    if (!html || !inContentMarkup) return html;
+
+    const holder = document.createElement("div");
+    holder.innerHTML = html;
+
+    // Only top-level blocks count towards the position.
+    const blocks = Array.from(holder.children);
+    if (blocks.length < 3) return html;
+
+    const position = Number(inContentMarkup.position);
+    if (!Number.isInteger(position)) return html;
+
+    let target = Math.round((blocks.length * position) / 100);
+    if (target < 1) target = 1;
+    if (target > blocks.length - 1) target = blocks.length - 1;
+
+    const slot = document.createElement("div");
+    slot.className = "ad-slot-incontent";
+    slot.innerHTML = inContentMarkup.markup;
+    if (!slot.firstElementChild) return html;
+
+    blocks[target].after(slot.firstElementChild);
+    return holder.innerHTML;
+  }
+
+  /* Body text without markup, for excerpts, word counts and SEO strings. */
+  function bodyText(content, bodyFormat) {
+    if (!content) return "";
+    const raw = String(content);
+    if (bodyFormat !== "html") return raw;
+
+    const holder = document.createElement("div");
+    holder.innerHTML = raw;
+    holder.querySelectorAll("script, style, iframe").forEach(node => node.remove());
+    return holder.textContent || "";
+  }
+
+  function makeExcerpt(content, max = 200, bodyFormat) {
+    // For an HTML body the markup is stripped first; for a plain-text body the
+    // editorial "# " and "**" conventions are stripped as before.
+    const source = bodyText(content, bodyFormat);
+
+    const text = source
       .replace(/^#{1,6}\s+/gm, "")
       .replace(/\*\*([^*]+)\*\*/g, "$1")
       .replace(/\s+/g, " ")
@@ -125,6 +221,26 @@
     return (cut > 0 ? clipped.slice(0, cut) : clipped).replace(/[,;:.]$/, "");
   }
 
+  /* The description an administrator typed for this article, falling back to the
+     body text for rows that predate the CMS. Kept in one place so the <meta>
+     tag, the Open Graph tag and the structured data always agree. */
+  function articleDescription(article, max = 158) {
+    if (article.meta_description) return String(article.meta_description);
+    return plainText(bodyText(article.content, article.body_format), max);
+  }
+
+  /* Escaped card/summary text for any article-shaped object from the API. A CMS
+     article gets its own meta description; a seeded one keeps the excerpt it has
+     always had. */
+  function cardExcerpt(article, max = 200) {
+    if (article.meta_description) {
+      const text = String(article.meta_description).replace(/\s+/g, " ").trim();
+      return text.length <= max ? escapeHtml(text) : `${escapeHtml(text.slice(0, max - 1).replace(/\s+\S*$/, ""))}…`;
+    }
+
+    return makeExcerpt(article.content, max, article.body_format);
+  }
+
   /**
    * Canonical article path. Every published row carries a slug, so the clean
    * /blog/<slug> form is the default; the numeric id form is kept only as a
@@ -153,38 +269,73 @@
     seoPage("home");
     showLoading("Loading stories...");
     try {
-      const [artRes, catRes] = await Promise.all([
+      const [artRes, catRes, trendRes] = await Promise.all([
         fetch("/api/articles"),
-        fetch("/api/categories")
+        fetch("/api/categories"),
+        // Trending is a separate query. The main feed is capped at the newest
+        // 50 rows, so trending articles sitting outside that window would never
+        // reach the sidebar and the list would come back nearly empty.
+        fetch("/api/articles?trending=true")
       ]);
       if (!artRes.ok || !catRes.ok) throw new Error("API error");
       const artData = await artRes.json();
       const catData = await catRes.json();
+      const trendData = trendRes.ok ? await trendRes.json() : { articles: [] };
 
       const articles = artData.articles.map(a => ({
-        id: a.id, slug: a.slug, title: a.title, excerpt: makeExcerpt(a.content),
+        id: a.id, slug: a.slug, title: a.title, excerpt: cardExcerpt(a),
         author: { id: a.author_id, name: a.author_username, avatar: a.author_avatar || DEFAULT_AVATAR },
         category: a.category_name || "General", categorySlug: a.category_slug,
-        image: a.cover_image || DEFAULT_COVER,
-        featured: Boolean(a.is_featured), date: formatDate(a.published_at || a.created_at),
-        readTime: readMins(a.content)
+        image: a.cover_image || DEFAULT_COVER, bannerAlt: a.banner_alt || "",
+        featured: Boolean(a.is_featured), trending: Boolean(a.is_trending),
+        date: formatDate(a.published_at || a.created_at),
+        readTime: readMins(a.content, a.body_format)
       }));
 
-      const featured = articles.filter(a => a.featured).slice(0, 2);
-      const recommended = articles.filter(a => !a.featured).slice(0, 3);
-      const latest = articles.filter(a => !a.featured).slice(3);
+      // is_featured picks the featured row. The API orders by created_at DESC with a
+      // LIMIT, so a featured article that is not in the newest page would be
+      // invisible here; falling back to the two newest keeps the section useful
+      // rather than empty.
+      let featured = articles.filter(a => a.featured).slice(0, 2);
+      if (featured.length === 0) featured = articles.slice(0, 2);
 
-      const trending = articles.filter(a => a.featured).slice(0, 5);
+      const recommended = articles.filter(a => !featured.includes(a)).slice(0, 3);
+      // Capped on purpose. The feed is 50 rows, and rendering every one of them
+      // pushed "Stay In Touch" and the footer roughly 22,000px down the page on a
+      // phone. Ten is enough to fill the fold, and /blog carries the rest behind
+      // a Load more button.
+      const latest = articles.filter(a => !featured.includes(a)).slice(3, 13);
+
+      // Prefer the dedicated trending query, then whatever the main feed
+      // carries, then any article at all. The sidebar should never render
+      // fewer than five rows just because flags are sparse.
+      const trending = trendData.articles.map(a => ({
+        id: a.id, slug: a.slug, title: a.title,
+        author: { name: a.author_username, avatar: a.author_avatar || DEFAULT_AVATAR }
+      }));
+      for (const a of articles) {
+        if (trending.length >= 5) break;
+        if (!trending.some(t => t.id === a.id)) trending.push(a);
+      }
+      // Titles are escaped here, at the point of output, so both the
+      // trending-query rows and the fallback rows are safe regardless of
+      // which branch supplied them.
+      const trendingList = trending.slice(0, 5).map(a => ({
+        ...a,
+        title: escapeHtml(a.title),
+        author: { name: escapeHtml(a.author.name), avatar: escapeHtml(a.author.avatar) }
+      }));
 
       renderApp(`
         <div class="layout">
           <div class="feed">
+            ${featured.length ? `
             <section class="feed-section">
               <h2 class="feed-heading">Featured stories</h2>
               <div class="featured-grid">
-                ${featured.length ? featured.map(a => `
+                ${featured.map(a => `
                   <article class="card card-featured">
-                    <a class="card-media" href="${articlePath(a)}" aria-label="${a.title}"><img class="card-img" src="${a.image}" alt="${a.title}" loading="lazy" decoding="async" width="1200" height="675"></a>
+                    <a class="card-media" href="${articlePath(a)}" aria-label="${a.title}"><img class="card-img" src="${a.image}" alt="${a.bannerAlt || a.title}" loading="lazy" decoding="async" width="1200" height="675"></a>
                     <div class="card-body">
                       <p class="card-eyebrow">${a.category}</p>
                       <h3 class="card-title"><a href="${articlePath(a)}">${a.title}</a></h3>
@@ -199,9 +350,9 @@
                       </div>
                     </div>
                   </article>
-                `).join("") : `<div class="empty-state"><p class="empty-state-title">No featured stories yet.</p><p class="empty-state-subtitle">Check back soon.</p></div>`}
+                `).join("")}
               </div>
-            </section>
+            </section>` : ""}
 
             <section class="feed-section">
               <h2 class="feed-heading">Recommended for you</h2>
@@ -215,19 +366,23 @@
               <div class="article-list">
                 ${latest.length ? latest.map(a => articleRow(a)).join("") : `<div class="empty-state"><p class="empty-state-title">No stories have been published yet.</p><p class="empty-state-subtitle">Be the first to write one.</p></div>`}
               </div>
+              <div class="feed-more">
+                <a class="btn btn-outline" href="/blog">Browse all stories</a>
+              </div>
             </section>
           </div>
 
           <aside class="sidebar">
+            ${AdSlot.placeholder("sidebar-top")}
             <section class="side-card">
               <h2 class="side-heading">Trending on KaliNova</h2>
               <ol class="trending-list">
-                ${trending.map((a, i) => `
+                ${trendingList.map((a, i) => `
                   <li class="trending-item">
                     <span class="trending-rank">${String(i + 1).padStart(2, "0")}</span>
                     <div class="trending-content">
                       <div class="trending-author-row">
-                        <img class="avatar avatar-xxs" src="${a.author.avatar}" alt="${a.author.name}" width="20" height="20" loading="lazy" decoding="async">
+                        <img class="avatar avatar-xxs" src="${a.author.avatar}" alt="" width="20" height="20" loading="lazy" decoding="async">
                         <span class="meta-author">${a.author.name}</span>
                       </div>
                       <h4 class="trending-title"><a href="${articlePath(a)}">${a.title}</a></h4>
@@ -236,10 +391,18 @@
                 `).join("")}
               </ol>
             </section>
+            ${AdSlot.placeholder("sidebar-middle")}
+            ${Sidebar.extra()}
+            ${AdSlot.placeholder("sidebar-bottom")}
             <p class="side-footnote">KaliNova &copy; 2026 &middot; Built for developers, by developers.</p>
           </aside>
         </div>
       `);
+
+      Sidebar.bind($("#app"));
+      // Pushes any ad placeholders in the freshly rendered page. A no-op while
+      // the site is unmonetised, because there is nothing in the DOM to fill.
+      AdSlot.hydrate($("#app"));
     } catch (e) {
       console.error(e);
       showError("Failed to load stories.");
@@ -264,40 +427,24 @@
             <span class="meta-read">${a.readTime} min read</span>
           </div>
         </div>
-        <a class="card-media card-media-side" href="${articlePath(a)}" aria-label="${a.title}"><img class="card-img" src="${a.image}" alt="${a.title}" loading="lazy" decoding="async" width="1200" height="675"></a>
+        <a class="card-media card-media-side" href="${articlePath(a)}" aria-label="${a.title}"><img class="card-img" src="${a.image}" alt="${a.bannerAlt || a.title}" loading="lazy" decoding="async" width="1200" height="675"></a>
       </article>`;
   }
 
   /* ------------------------------------------------------------------ */
   /* Stories Page                                                       */
   /* ------------------------------------------------------------------ */
-  async function renderStories() {
-    seoPage("stories");
-    showLoading("Loading stories...");
-    try {
-      const res = await fetch("/api/articles");
-      if (!res.ok) throw new Error("API error");
-      const data = await res.json();
-      const articles = data.articles.map(a => ({
-        id: a.id, slug: a.slug, title: a.title, excerpt: makeExcerpt(a.content),
-        author: { id: a.author_id, name: a.author_username, avatar: a.author_avatar || DEFAULT_AVATAR },
-        category: a.category_name || "General", categorySlug: a.category_slug,
-        image: a.cover_image || DEFAULT_COVER,
-        featured: Boolean(a.is_featured), date: formatDate(a.published_at || a.created_at),
-        readTime: readMins(a.content)
-      }));
 
-      renderApp(`
-        <div class="page-container">
-          <div class="page-header">
-            <h1 class="page-title">Stories</h1>
-            <p class="page-subtitle">Discover stories from developers, engineers, and technologists</p>
-            ${isLoggedIn() ? `<button class="btn btn-primary" onclick="document.dispatchEvent(new CustomEvent('open-write'))">Write a Story</button>` : ""}
-          </div>
-          <div class="stories-grid">
-            ${articles.length ? articles.map(a => `
+  /* How many story cards the listing shows before the reader has to ask for
+     more. The endpoint caps the result set at 50 rows, so this is a display
+     batch rather than a server page size: everything is already in memory and
+     the button just reveals the next slice. */
+  const STORIES_BATCH = 12;
+
+  function storyCard(a) {
+    return `
               <article class="story-card">
-                <a class="story-card-media" href="${articlePath(a)}" aria-label="${a.title}"><img src="${a.image}" alt="${a.title}" loading="lazy" decoding="async" width="1200" height="750"></a>
+                <a class="story-card-media" href="${articlePath(a)}" aria-label="${a.title}"><img src="${a.image}" alt="${a.bannerAlt || a.title}" loading="lazy" decoding="async" width="1200" height="750"></a>
                 <div class="story-card-body">
                   <span class="story-card-category">${a.category}</span>
                   <h3 class="story-card-title"><a href="${articlePath(a)}">${a.title}</a></h3>
@@ -311,11 +458,69 @@
                     <span>${a.date}</span>
                   </div>
                 </div>
-              </article>
-            `).join("") : `<div class="empty-state"><p class="empty-state-title">No stories published yet.</p><p class="empty-state-subtitle">Be the first to write one!</p></div>`}
+              </article>`;
+  }
+
+  /* Appends the next batch and relabels the button. Bound once per render from
+     renderStories; the cards carry no listeners of their own, so inserting
+     markup is enough. */
+  function bindLoadMore(state) {
+    const button = document.getElementById("load-more-stories");
+    if (!button) return;
+    button.addEventListener("click", () => {
+      const grid = document.querySelector(".stories-grid");
+      if (!grid) return;
+      const next = state.articles.slice(state.shown, state.shown + STORIES_BATCH);
+      grid.insertAdjacentHTML("beforeend", next.map(storyCard).join(""));
+      state.shown += next.length;
+
+      const left = state.articles.length - state.shown;
+      if (left <= 0) {
+        button.remove();
+        return;
+      }
+      button.textContent = `Load more stories (${left} remaining)`;
+    });
+  }
+
+  async function renderStories() {
+    // Canonicalises to /blog whether the visitor typed /blog or /stories.
+    seoPage("blog");
+    showLoading("Loading stories...");
+    try {
+      const res = await fetch("/api/articles");
+      if (!res.ok) throw new Error("API error");
+      const data = await res.json();
+      const articles = data.articles.map(a => ({
+        id: a.id, slug: a.slug, title: a.title, excerpt: cardExcerpt(a),
+        author: { id: a.author_id, name: a.author_username, avatar: a.author_avatar || DEFAULT_AVATAR },
+        category: a.category_name || "General", categorySlug: a.category_slug,
+        image: a.cover_image || DEFAULT_COVER, bannerAlt: a.banner_alt || "",
+        featured: Boolean(a.is_featured), date: formatDate(a.published_at || a.created_at),
+        readTime: readMins(a.content, a.body_format)
+      }));
+
+      const first = articles.slice(0, STORIES_BATCH);
+      const remaining = articles.length - first.length;
+      const state = { articles, shown: first.length };
+
+      renderApp(`
+        <div class="page-container">
+          <div class="page-header">
+            <h1 class="page-title">Stories</h1>
+            <p class="page-subtitle">Discover stories from developers, engineers, and technologists</p>
           </div>
+          <div class="stories-grid">
+            ${articles.length ? first.map(storyCard).join("") : `<div class="empty-state"><p class="empty-state-title">No stories published yet.</p><p class="empty-state-subtitle">Be the first to write one!</p></div>`}
+          </div>
+          ${remaining > 0 ? `
+          <div class="load-more-wrap">
+            <button class="btn btn-outline" id="load-more-stories" type="button">Load more stories (${remaining} remaining)</button>
+          </div>` : ""}
         </div>
       `);
+
+      if (remaining > 0) bindLoadMore(state);
     } catch (e) {
       showError("Failed to load stories.");
     }
@@ -489,10 +694,13 @@
 
       const article = {
         id: a.id, slug: a.slug, title: a.title, content: a.content,
+        bodyFormat: a.body_format === "html" ? "html" : "text",
+        metaDescription: a.meta_description || "",
+        bannerAlt: a.banner_alt || "",
         author: { id: a.author_id, name: a.author_username, avatar: a.author_avatar || DEFAULT_AVATAR, bio: a.author_bio || "" },
         category: a.category_name || "General", categorySlug: a.category_slug,
         image: a.cover_image || DEFAULT_COVER,
-        date: formatDate(a.published_at || a.created_at), readTime: readMins(a.content)
+        date: formatDate(a.published_at || a.created_at), readTime: readMins(a.content, a.body_format)
       };
 
       // Related stories from the same topic, newest first. Fetched after the
@@ -508,9 +716,9 @@
               .slice(0, 3)
               .map(r => ({
                 id: r.id, slug: r.slug, title: r.title,
-                excerpt: makeExcerpt(r.content, 120),
+                excerpt: cardExcerpt(r, 120),
                 category: r.category_name || "General", categorySlug: r.category_slug,
-                image: r.cover_image || DEFAULT_COVER,
+                image: r.cover_image || DEFAULT_COVER, bannerAlt: r.banner_alt || "",
                 date: formatDate(r.published_at || r.created_at)
               }));
           }
@@ -530,13 +738,23 @@
             slug: article.slug,
             title: article.title,
             cover_image: article.image,
+            banner_alt: article.bannerAlt,
             category_name: article.category,
             category_slug: article.categorySlug,
             published_at: a.published_at || a.created_at,
             updated_at: a.updated_at,
-            word_count: (article.content || "").trim().split(/\s+/).length
+            word_count: bodyText(article.content, article.bodyFormat).trim().split(/\s+/).filter(Boolean).length
           },
-          { excerpt: plainText(article.content, 158), breadcrumb: crumbs }
+          {
+            // articleDescription already prefers meta_description; seo.js applies
+            // the same preference, so this stays consistent either way.
+            excerpt: articleDescription({
+              meta_description: article.metaDescription,
+              content: article.content,
+              body_format: article.bodyFormat
+            }),
+            breadcrumb: crumbs
+          }
         );
       }
 
@@ -565,8 +783,16 @@
               </div>
             </div>
           </div>
-          ${article.image ? `<img class="article-detail-cover" src="${article.image}" alt="${escapeHtml(article.title)}" width="1200" height="675" fetchpriority="high" decoding="async">` : ""}
-          <div class="article-detail-content">${formatContent(article.content)}</div>
+          ${AdSlot.placeholder("before-article")}
+          ${article.image ? `<img class="article-detail-cover" src="${article.image}" alt="${escapeHtml(article.bannerAlt || article.title)}" width="1200" height="675" fetchpriority="high" decoding="async">` : ""}
+          <div class="article-detail-content">${renderArticleContent(
+            article.content,
+            article.bodyFormat,
+            AdSlot.inArticle("in-article", articleBlockCount(article.content, article.bodyFormat), {
+              contentPosition: AdSlot.positionOf("in-article")
+            })
+          )}</div>
+          ${AdSlot.placeholder("after-article")}
           ${renderGallery(galleryImages)}
           <div class="article-detail-footer">
             <div class="article-actions">
@@ -580,7 +806,7 @@
             <div class="related-grid">
               ${related.map(r => `
                 <article class="related-card">
-                  ${r.image ? `<a class="related-media" href="${articlePath(r)}" aria-label="${escapeHtml(r.title)}"><img src="${r.image}" alt="${escapeHtml(r.title)}" loading="lazy" decoding="async" width="400" height="300"></a>` : ""}
+                  ${r.image ? `<a class="related-media" href="${articlePath(r)}" aria-label="${escapeHtml(r.title)}"><img src="${r.image}" alt="${escapeHtml(r.bannerAlt || r.title)}" loading="lazy" decoding="async" width="400" height="300"></a>` : ""}
                   <div class="related-body">
                     <span class="related-category">${escapeHtml(r.category)}</span>
                     <h3 class="related-title"><a href="${articlePath(r)}">${escapeHtml(r.title)}</a></h3>
@@ -601,6 +827,7 @@
       if (galleryImages.length) {
         bindGallery(document.getElementById("app"), galleryImages);
       }
+      AdSlot.hydrate($("#app"));
     } catch (e) {
       showError("Story not found.");
     }
@@ -619,7 +846,7 @@
       if (!res.ok) throw new Error("API error");
       const data = await res.json();
       const posts = data.articles.slice(0, 6).map(a => ({
-        id: a.id, slug: a.slug, title: a.title, excerpt: makeExcerpt(a.content, 150),
+        id: a.id, slug: a.slug, title: a.title, excerpt: cardExcerpt(a, 150),
         author: { name: a.author_username, avatar: a.author_avatar || DEFAULT_AVATAR },
         date: formatDate(a.published_at || a.created_at),
         status: a.status || "published"
@@ -679,11 +906,11 @@
       if (!res.ok) throw new Error("API error");
       const data = await res.json();
       const articles = data.articles.slice(0, 8).map(a => ({
-        id: a.id, slug: a.slug, title: a.title, excerpt: makeExcerpt(a.content),
+        id: a.id, slug: a.slug, title: a.title, excerpt: cardExcerpt(a),
         author: { name: a.author_username, avatar: a.author_avatar || DEFAULT_AVATAR },
         category: a.category_name || "General", categorySlug: a.category_slug,
-        image: a.cover_image || DEFAULT_COVER,
-        date: formatDate(a.published_at || a.created_at), readTime: readMins(a.content)
+        image: a.cover_image || DEFAULT_COVER, bannerAlt: a.banner_alt || "",
+        date: formatDate(a.published_at || a.created_at), readTime: readMins(a.content, a.body_format)
       }));
 
       renderApp(`
@@ -695,7 +922,7 @@
           <div class="news-grid">
             ${articles.map(a => `
               <article class="news-card">
-                <a class="news-card-media" href="${articlePath(a)}" aria-label="${escapeHtml(a.title)}"><img src="${a.image}" alt="${escapeHtml(a.title)}" loading="lazy" decoding="async" width="400" height="300"></a>
+                <a class="news-card-media" href="${articlePath(a)}" aria-label="${escapeHtml(a.title)}"><img src="${a.image}" alt="${escapeHtml(a.bannerAlt || a.title)}" loading="lazy" decoding="async" width="400" height="300"></a>
                 <div class="news-card-body">
                   <span class="news-card-date">${a.date}</span>
                   <h3 class="news-card-title"><a href="${articlePath(a)}">${escapeHtml(a.title)}</a></h3>
@@ -720,6 +947,40 @@
   /* ------------------------------------------------------------------ */
   /* Category Page                                                       */
   /* ------------------------------------------------------------------ */
+
+  /**
+   * The topic switcher shown on a topic page.
+   *
+   * Every topic is listed, not just the one being read, so a reader can move
+   * sideways between subjects from anywhere on the site. The current topic is
+   * marked with is-active and aria-current, and the list is built from
+   * /api/categories, so adding a topic in the admin makes it appear here with
+   * no frontend change.
+   *
+   * This replaces the old "← All stories" back link, which only ever pointed at
+   * the listing and gave no way to reach a different topic.
+   */
+  function renderTopicSwitcher(categories, activeSlug) {
+    if (!categories || !categories.length) return "";
+
+    const chips = categories
+      .map(topic => {
+        const isActive = topic.slug === activeSlug;
+        return `<li>
+            <a class="topic-chip${isActive ? " is-active" : ""}"
+               href="/category/${encodeURIComponent(topic.slug)}"${isActive ? ' aria-current="page"' : ""}>${escapeHtml(topic.name)}</a>
+          </li>`;
+      })
+      .join("\n          ");
+
+    return `<nav class="topic-switcher" aria-label="All topics">
+        <h2 class="topic-switcher-heading">Browse by topic</h2>
+        <ul>
+          ${chips}
+        </ul>
+      </nav>`;
+  }
+
   async function renderCategory(params) {
     const slug = params && params.slug;
     if (!slug) return renderHome();
@@ -755,11 +1016,11 @@
 
       const data = await artRes.json();
       const articles = data.articles.map(a => ({
-        id: a.id, slug: a.slug, title: a.title, excerpt: makeExcerpt(a.content),
+        id: a.id, slug: a.slug, title: a.title, excerpt: cardExcerpt(a),
         author: { name: a.author_username, avatar: a.author_avatar || DEFAULT_AVATAR },
         category: a.category_name || "General", categorySlug: a.category_slug,
-        image: a.cover_image || DEFAULT_COVER,
-        date: formatDate(a.published_at || a.created_at), readTime: readMins(a.content)
+        image: a.cover_image || DEFAULT_COVER, bannerAlt: a.banner_alt || "",
+        date: formatDate(a.published_at || a.created_at), readTime: readMins(a.content, a.body_format)
       }));
 
       if (SEO) SEO.applyCategory(cat, articles.length);
@@ -779,16 +1040,16 @@
               <li class="breadcrumbs-item"><span aria-current="page">${escapeHtml(cat.name)}</span></li>
             </ol>
           </nav>
-          <a class="category-back-link" href="/stories">&larr; All stories</a>
           <div class="page-header">
             <h1 class="page-title">${escapeHtml(cat.name)}</h1>
             ${cat.description ? `<p class="page-subtitle">${escapeHtml(cat.description)}</p>` : ""}
           </div>
+          ${renderTopicSwitcher(catData.categories, cat.slug)}
           ${articles.length ? `
             <div class="news-grid">
               ${articles.map(a => `
                 <article class="news-card">
-                  <a class="news-card-media" href="${articlePath(a)}" aria-label="${escapeHtml(a.title)}"><img src="${a.image}" alt="${escapeHtml(a.title)}" loading="lazy" decoding="async" width="400" height="300"></a>
+                  <a class="news-card-media" href="${articlePath(a)}" aria-label="${escapeHtml(a.title)}"><img src="${a.image}" alt="${escapeHtml(a.bannerAlt || a.title)}" loading="lazy" decoding="async" width="400" height="300"></a>
                   <div class="news-card-body">
                     <span class="news-card-date">${a.date}</span>
                     <h3 class="news-card-title"><a href="${articlePath(a)}">${escapeHtml(a.title)}</a></h3>
@@ -821,40 +1082,6 @@
   /* ------------------------------------------------------------------ */
   function renderPortfolio() {
     seoNoindex("/portfolio", "Portfolio | KaliNova");
-    if (!isLoggedIn()) {
-      renderApp(`
-        <div class="page-container">
-          <div class="page-header">
-            <h1 class="page-title">Portfolio Builder</h1>
-            <p class="page-subtitle">Create your professional portfolio and share it with the world</p>
-            <button class="btn btn-primary" onclick="document.dispatchEvent(new CustomEvent('open-write'))">Write a Story</button>
-          </div>
-          <div class="portfolio-features">
-            <div class="portfolio-feature">
-              <div class="portfolio-feature-icon">&#128196;</div>
-              <h3>Professional Profile</h3>
-              <p>Showcase your skills, experience, and education</p>
-            </div>
-            <div class="portfolio-feature">
-              <div class="portfolio-feature-icon">&#128188;</div>
-              <h3>Projects & Work</h3>
-              <p>Display your best projects and case studies</p>
-            </div>
-            <div class="portfolio-feature">
-              <div class="portfolio-feature-icon">&#128241;</div>
-              <h3>Public URL</h3>
-              <p>Get a shareable link like kalinova.com/portfolio/yourname</p>
-            </div>
-            <div class="portfolio-feature">
-              <div class="portfolio-feature-icon">&#128176;</div>
-              <h3>Marketplace Integration</h3>
-              <p>Connect your products and services</p>
-            </div>
-          </div>
-        </div>
-      `);
-      return;
-    }
 
     renderApp(`
       <div class="page-container">
@@ -933,18 +1160,6 @@
   /* ------------------------------------------------------------------ */
   function renderCV() {
     seoNoindex("/cv", "CV | KaliNova");
-    if (!isLoggedIn()) {
-      renderApp(`
-        <div class="page-container">
-          <div class="page-header">
-            <h1 class="page-title">CV / Resume</h1>
-            <p class="page-subtitle">Create a professional CV and share it with employers</p>
-            <button class="btn btn-primary" onclick="document.dispatchEvent(new CustomEvent('open-write'))">Write a Story</button>
-          </div>
-        </div>
-      `);
-      return;
-    }
 
     renderApp(`
       <div class="page-container">
@@ -1045,12 +1260,12 @@
       if (!res.ok) throw new Error("API error");
       const data = await res.json();
       const articles = data.articles.map(a => ({
-        id: a.id, slug: a.slug, title: a.title, excerpt: makeExcerpt(a.content),
-        author: { name: a.author_username, avatar: a.author_avatar || DEFAULT_AVATAR },
+id: a.id, slug: a.slug, title: a.title, excerpt: cardExcerpt(a),
+        author: { id: a.author_id, name: a.author_username, avatar: a.author_avatar || DEFAULT_AVATAR },
         category: a.category_name || "General", categorySlug: a.category_slug,
-        image: a.cover_image || DEFAULT_COVER,
-        date: formatDate(a.published_at || a.created_at),
-        readTime: readMins(a.content)
+        image: a.cover_image || DEFAULT_COVER, bannerAlt: a.banner_alt || "",
+        featured: Boolean(a.is_featured), date: formatDate(a.published_at || a.created_at),
+        readTime: readMins(a.content, a.body_format)
       }));
 
       if (articles.length === 0) {
@@ -1070,18 +1285,18 @@
   }
 
   /* ------------------------------------------------------------------ */
-  /* Dashboard Page (authenticated)                                     */
+  /* Dashboard Page (static preview)                                    */
   /* ------------------------------------------------------------------ */
+  // The public SPA has no accounts, so this page is a static preview rather
+  // than a signed-in view. The real, authenticated dashboard lives at
+  // /admin/dashboard and is not linked from here.
   function renderDashboard() {
     seoNoindex("/dashboard", "Dashboard | KaliNova");
-
-    const session = getSession();
-    const user = session.user || {};
 
     renderApp(`
       <div class="page-container">
         <div class="page-header">
-          <h1 class="page-title">Welcome back, ${user.username || "Creator"}!</h1>
+          <h1 class="page-title">Welcome back, Creator!</h1>
           <p class="page-subtitle">Here's an overview of your KaliNova activity</p>
         </div>
         <div class="dashboard-stats">
@@ -1094,10 +1309,6 @@
         <div class="dashboard-actions">
           <h2 class="dashboard-actions-title">Quick Actions</h2>
           <div class="dashboard-actions-grid">
-            <button class="dashboard-action-btn" onclick="document.dispatchEvent(new CustomEvent('open-write'))">
-              <span class="action-icon">&#9997;</span>
-              <span>Create Story</span>
-            </button>
             <button class="dashboard-action-btn" onclick="Router.navigate('/portfolio')">
               <span class="action-icon">&#128196;</span>
               <span>Create Portfolio</span>
@@ -1168,20 +1379,10 @@
   /* ------------------------------------------------------------------ */
   function renderSettings() {
     seoNoindex("/settings", "Settings | KaliNova");
-    if (!isLoggedIn()) {
-      renderApp(`
-        <div class="page-container">
-          <div class="page-header">
-            <h1 class="page-title">Settings</h1>
-            <p class="page-subtitle">Sign in to manage your account settings</p>
-          </div>
-        </div>
-      `);
-      return;
-    }
 
-    const session = getSession();
-    const user = session.user || {};
+    // No accounts exist on the public site, so these fields are always empty:
+    // the administrator's real settings belong in /admin.
+    const user = {};
 
     renderApp(`
       <div class="page-container">
@@ -1930,6 +2131,183 @@ The future is still being written.`
   }
 
   /* ------------------------------------------------------------------ */
+  /* Privacy policy                                                    */
+  /* ------------------------------------------------------------------ */
+  // Written to describe what the site actually does today, and to say plainly
+  // that advertising is not running. When ads are switched on in /admin/ads,
+  // this page has to be revisited before going live: the cookie and
+  // advertising sections have to describe the network that is actually being
+  // used. It deliberately does not name a provider that is not in use.
+  function renderPrivacy() {
+    seoPage("privacy", {
+      breadcrumb: [
+        { name: "Home", path: "/" },
+        { name: "Privacy Policy", path: "/privacy" }
+      ]
+    });
+
+    renderApp(`
+      <div class="page-container">
+        <header class="page-header">
+          <h1 class="page-title">Privacy Policy</h1>
+          <p class="page-subtitle">Last updated 5 October 2026</p>
+        </header>
+
+        <div class="contact-grid">
+          <article class="contact-card">
+            <h2 class="contact-title">What KaliNova collects today</h2>
+            <p class="contact-body">
+              This site has no reader accounts and no sign-up. Reading stories, browsing
+              topics and using the search box do not require you to identify yourself.
+            </p>
+            <p class="contact-body">
+              If you email us, submit a guest post or get in touch through the contact
+              page, we keep what you send us so we can reply. We do not sell it.
+            </p>
+          </article>
+
+          <article class="contact-card">
+            <h2 class="contact-title">Cookies and advertising</h2>
+            <p class="contact-body">
+              <strong>KaliNova does not run advertising at present.</strong> No ad network
+              script is requested, and no third-party cookies are set for advertising.
+            </p>
+            <p class="contact-body">
+              If advertising is introduced, this section will be updated first to name
+              the provider, describe the cookies it uses, and link to its own privacy
+              policy. A consent choice will be shown before any ad data is requested,
+              and declining will leave advertising switched off.
+            </p>
+          </article>
+
+          <article class="contact-card">
+            <h2 class="contact-title">Server logs</h2>
+            <p class="contact-body">
+              The web server keeps standard request logs such as IP address, timestamp
+              and the page requested. These are used to keep the site running and to
+              detect abuse, and they are not used to build a profile of you.
+            </p>
+          </article>
+
+          <article class="contact-card">
+            <h2 class="contact-title">Third-party content</h2>
+            <p class="contact-body">
+              Photographs in stories are Creative Commons files credited to their
+              creators, with a link to the source. Opening a credit link takes you to
+              another site, which has its own privacy policy.
+            </p>
+          </article>
+
+          <article class="contact-card">
+            <h2 class="contact-title">Your choices</h2>
+            <p class="contact-body">
+              You can ask what information we hold about you, ask for it to be
+              corrected, or ask for it to be deleted. Email
+              <a href="mailto:soumyadipsasmal88@gmail.com">soumyadipsasmal88@gmail.com</a>
+              and we will deal with the request.
+            </p>
+          </article>
+
+          <article class="contact-card">
+            <h2 class="contact-title">Changes</h2>
+            <p class="contact-body">
+              If this policy changes, the date at the top changes with it. Material
+              changes will be noted here rather than made silently.
+            </p>
+          </article>
+        </div>
+
+        <p class="contact-note">
+          Questions about this policy can go to
+          <a href="mailto:soumyadipsasmal88@gmail.com">soumyadipsasmal88@gmail.com</a>.
+        </p>
+      </div>
+    `);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Terms of use                                                       */
+  /* ------------------------------------------------------------------ */
+  function renderTerms() {
+    seoPage("terms", {
+      breadcrumb: [
+        { name: "Home", path: "/" },
+        { name: "Terms of Use", path: "/terms" }
+      ]
+    });
+
+    renderApp(`
+      <div class="page-container">
+        <header class="page-header">
+          <h1 class="page-title">Terms of Use</h1>
+          <p class="page-subtitle">Last updated 5 October 2026</p>
+        </header>
+
+        <div class="contact-grid">
+          <article class="contact-card">
+            <h2 class="contact-title">The content on this site</h2>
+            <p class="contact-body">
+              Stories published on KaliNova are written for readers to read. They may be
+              quoted with a link back and a clear attribution. Republishing a whole
+              article, or passing it off as your own, is not permitted.
+            </p>
+          </article>
+
+          <article class="contact-card">
+            <h2 class="contact-title">Guest posts</h2>
+            <p class="contact-body">
+              Submissions are reviewed before publication. Publishing a guest post does
+              not transfer copyright: the writer keeps it, and grants permission to
+              publish it here.
+            </p>
+          </article>
+
+          <article class="contact-card">
+            <h2 class="contact-title">Accuracy</h2>
+            <p class="contact-body">
+              We try to keep stories accurate and will correct errors when they are
+              pointed out. Nothing here is professional advice, and nothing here is
+              an offer or a recommendation to buy or sell anything.
+            </p>
+          </article>
+
+          <article class="contact-card">
+            <h2 class="contact-title">External links</h2>
+            <p class="contact-body">
+              Links to other sites are included because they are useful, not because we
+              control them. We are not responsible for what is on another site.
+            </p>
+          </article>
+
+          <article class="contact-card">
+            <h2 class="contact-title">Advertising</h2>
+            <p class="contact-body">
+              KaliNova does not run advertising at present. If it does in future, labelled
+              ad placements will be shown, they will be kept visually distinct from
+              editorial content, and the <a href="/privacy">privacy policy</a> will
+              describe the arrangement before it starts.
+            </p>
+          </article>
+
+          <article class="contact-card">
+            <h2 class="contact-title">Liability</h2>
+            <p class="contact-body">
+              The site is provided as it is. We are not liable for decisions you make on
+              the basis of anything published here, or for any loss arising from use of
+              the site.
+            </p>
+          </article>
+        </div>
+
+        <p class="contact-note">
+          Questions about these terms can go to
+          <a href="mailto:soumyadipsasmal88@gmail.com">soumyadipsasmal88@gmail.com</a>.
+        </p>
+      </div>
+    `);
+  }
+
+  /* ------------------------------------------------------------------ */
   /* Not found                                                          */
   /* ------------------------------------------------------------------ */
   function render404(path) {
@@ -1962,12 +2340,16 @@ The future is still being written.`
     renderHome, renderStories, renderStoryDetail, renderGuestPosts,
     renderNews, renderPortfolio, renderMarketplace, renderCV, renderSearch,
     renderDashboard, renderProfile, renderSettings, renderCategory, renderAbout,
-    renderCareers, renderServices, renderContact, render404,
+    renderCareers, renderServices, renderContact, renderPrivacy, renderTerms, render404,
     renderGuestPostModal, renderCreateListingModal
   };
 
   // Canonical, indexable routes.
   Router.register("/", renderHome);
+  // /blog is the blog listing. /stories is the older name for the same page and
+  // is still linked from older markup, so both render the listing; /blog is the
+  // one that gets indexed (see the `stories` entry in seo.js).
+  Router.register("/blog", renderStories);
   Router.register("/stories", renderStories);
   Router.register("/news", renderNews);
   Router.register("/category/:slug", renderCategory);
@@ -1975,6 +2357,10 @@ The future is still being written.`
   Router.register("/services", renderServices);
   Router.register("/contact", renderContact);
   Router.register("/careers", renderCareers);
+  // Legal pages. Linked from the footer and from the sidebar signup copy, so they
+  // have to be real routes rather than 404s.
+  Router.register("/privacy", renderPrivacy);
+  Router.register("/terms", renderTerms);
 
   // Article detail. /blog/<slug> is canonical; /stories/<id> is the legacy
   // numeric form and redirects itself to the slug.

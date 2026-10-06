@@ -1,0 +1,553 @@
+/* ==========================================================================
+   KaliNova — Admin
+
+   Loaded after style.css on the admin pages only, so it inherits the public
+   design tokens (colour, type, radii, focus rings) instead of introducing a
+   second design system. Nothing here is loaded by the public site.
+   ========================================================================== */
+
+.admin-body {
+  background: var(--paper);
+  color: var(--ink);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-body--centered .admin-main {
+  justify-content: center;
+}
+
+/* --------------------------------------------------------------------------
+   Header
+   -------------------------------------------------------------------------- */
+
+.admin-header {
+  background: var(--ink);
+  color: var(--paper);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.admin-header-inner {
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px 24px;
+  flex-wrap: wrap;
+}
+
+.admin-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--paper);
+}
+
+.admin-brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: #fff;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+}
+
+.admin-brand-text {
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.admin-nav {
+  margin-left: auto;
+}
+
+.admin-nav ul {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.admin-nav-form {
+  display: inline;
+  margin: 0;
+}
+
+.admin-nav-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  color: var(--paper);
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
+
+.admin-nav-link:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.admin-nav-link.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.admin-nav-link.is-pending {
+  opacity: 0.4;
+  cursor: not-allowed;
+  border-style: dashed;
+}
+
+.admin-nav-link.is-pending:hover {
+  background: transparent;
+}
+
+.admin-button {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.875rem;
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.admin-nav-button {
+  font-size: 0.85rem;
+  padding: 7px 14px;
+}
+
+.admin-button--primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.admin-button--primary:hover {
+  background: var(--accent-dark);
+  border-color: var(--accent-dark);
+}
+
+.admin-identity {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--body-text-light-muted);
+}
+
+.admin-identity-role {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent-light);
+  font-weight: 700;
+}
+
+.admin-identity-email {
+  word-break: break-all;
+}
+
+/* --------------------------------------------------------------------------
+   Layout
+   -------------------------------------------------------------------------- */
+
+.admin-main {
+  flex: 1;
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: 32px 20px 56px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.admin-main--narrow {
+  max-width: 440px;
+}
+
+.admin-page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.admin-page-title {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.admin-page-subtitle {
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+  margin-top: 4px;
+}
+
+.admin-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.admin-section-title {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.admin-note {
+  color: var(--ink-muted);
+  font-size: 0.8rem;
+}
+
+/* --------------------------------------------------------------------------
+   Stat cards
+   -------------------------------------------------------------------------- */
+
+.admin-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 14px;
+}
+
+.admin-stat {
+  background: var(--paper-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 18px 20px;
+  box-shadow: var(--shadow-card);
+}
+
+.admin-stat-value {
+  font-family: var(--font-display);
+  font-size: 2.25rem;
+  font-weight: 600;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-stat-label {
+  margin-top: 6px;
+  color: var(--ink-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+/* --------------------------------------------------------------------------
+   Recent articles table
+   -------------------------------------------------------------------------- */
+
+.admin-table-wrap {
+  background: var(--paper-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  overflow-x: auto;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.admin-table th,
+.admin-table td {
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.admin-table thead th {
+  background: var(--accent-tint);
+  color: var(--accent-dark);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.admin-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.admin-table tbody tr:hover {
+  background: rgba(31, 107, 79, 0.04);
+}
+
+.admin-cell-title {
+  font-weight: 600;
+  min-width: 220px;
+}
+
+.admin-table time,
+.admin-table td[data-label="Date"] {
+  white-space: nowrap;
+  color: var(--ink-muted);
+}
+
+.admin-table-empty {
+  color: var(--ink-muted);
+  text-align: center;
+  padding: 28px 16px;
+}
+
+.admin-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border: 1px solid var(--border-strong);
+  background: var(--paper);
+  color: var(--ink-soft);
+}
+
+.admin-badge--published {
+  background: var(--accent-tint);
+  border-color: rgba(31, 107, 79, 0.35);
+  color: var(--accent-dark);
+}
+
+.admin-badge--draft {
+  background: #FBF0E6;
+  border-color: rgba(179, 67, 43, 0.3);
+  color: var(--danger);
+}
+
+/* --------------------------------------------------------------------------
+   Cards, forms, alerts
+   -------------------------------------------------------------------------- */
+
+.admin-card {
+  background: var(--paper-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-pop);
+  padding: 28px;
+}
+
+.admin-card-title {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.admin-card-subtitle {
+  margin-top: 6px;
+  margin-bottom: 20px;
+  color: var(--ink-muted);
+  font-size: 0.875rem;
+}
+
+.admin-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.admin-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.admin-field label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.admin-field input {
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  padding: 11px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--paper-raised);
+  color: var(--ink);
+  width: 100%;
+}
+
+.admin-field input:hover {
+  border-color: var(--ink-faint);
+}
+
+.admin-field input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.admin-alert {
+  border-radius: var(--radius-sm);
+  padding: 11px 14px;
+  font-size: 0.85rem;
+  margin-bottom: 18px;
+  border: 1px solid transparent;
+}
+
+.admin-alert--error {
+  background: #FBF0E6;
+  border-color: rgba(179, 67, 43, 0.35);
+  color: var(--danger);
+}
+
+.admin-alert--info {
+  background: var(--accent-tint);
+  border-color: rgba(31, 107, 79, 0.3);
+  color: var(--accent-dark);
+  margin-bottom: 0;
+}
+
+/* --------------------------------------------------------------------------
+   Footer
+   -------------------------------------------------------------------------- */
+
+.admin-footer {
+  border-top: 1px solid var(--border);
+  background: var(--paper-raised);
+  color: var(--ink-muted);
+  padding: 18px 20px;
+  font-size: 0.78rem;
+}
+
+.admin-footer p {
+  max-width: var(--content-max);
+  margin: 0 auto;
+}
+
+.admin-footer p + p {
+  margin-top: 4px;
+}
+
+.admin-footer a {
+  color: var(--accent-dark);
+  text-decoration: underline;
+}
+
+.admin-footer a:hover {
+  color: var(--accent);
+}
+
+/* --------------------------------------------------------------------------
+   Mobile
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 720px) {
+  .admin-header-inner {
+    padding: 12px 16px;
+    gap: 12px;
+  }
+
+  .admin-nav {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .admin-nav ul {
+    gap: 8px;
+  }
+
+  .admin-identity {
+    align-items: flex-start;
+  }
+
+  .admin-main {
+    padding: 22px 16px 44px;
+  }
+
+  .admin-page-title {
+    font-size: 1.6rem;
+  }
+
+  /* Each row becomes a labelled block so no column is squeezed off-screen. */
+  .admin-table-wrap {
+    border: none;
+    box-shadow: none;
+    background: transparent;
+    overflow-x: visible;
+  }
+
+  .admin-table thead {
+    display: none;
+  }
+
+  .admin-table,
+  .admin-table tbody,
+  .admin-table tr,
+  .admin-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .admin-table tr {
+    background: var(--paper-raised);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+    padding: 6px 0;
+    margin-bottom: 12px;
+  }
+
+  .admin-table td {
+    border-bottom: none;
+    padding: 6px 16px;
+  }
+
+  .admin-table td::before {
+    content: attr(data-label);
+    display: block;
+    color: var(--ink-muted);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .admin-cell-title {
+    min-width: 0;
+  }
+
+  .admin-table td[data-label="Date"] {
+    white-space: normal;
+  }
+
+  .admin-table-empty::before {
+    display: none;
+  }
+}

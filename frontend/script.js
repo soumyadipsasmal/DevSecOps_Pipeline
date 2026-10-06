@@ -2,8 +2,8 @@
  * KaliNova — Main SPA Controller
  * Handles navigation, topic menus, modals, and routing initialization.
  *
- * There are no user accounts: every article is published as the site author,
- * so there is no session, sign-in or sign-out to manage.
+ * The public site has no accounts: nobody can sign in, and articles are written
+ * by administrators from /admin/dashboard rather than from this page.
  */
 (() => {
   "use strict";
@@ -93,71 +93,6 @@
   }
 
   /* ------------------------------------------------------------------ */
-  /* Write modal                                                        */
-  /* ------------------------------------------------------------------ */
-  const writeModal = $("#write-modal");
-  const writeForm = $("#write-form");
-  const writeError = $("#write-error");
-  const writeSubmitBtn = $(".btn-primary", writeForm);
-
-  async function openWriteModal() {
-    const select = $("#write-category");
-    select.innerHTML = '<option value="">No category</option>';
-    try {
-      const res = await fetch("/api/categories");
-      if (res.ok) {
-        const data = await res.json();
-        data.categories.forEach(c => {
-          const opt = document.createElement("option");
-          opt.value = c.id;
-          opt.textContent = c.name;
-          select.appendChild(opt);
-        });
-      }
-    } catch {}
-
-    writeForm.reset();
-    writeError.hidden = true;
-    writeModal.hidden = false;
-  }
-
-  function closeWriteModal() { writeModal.hidden = true; }
-
-  $("#write-modal-close").addEventListener("click", closeWriteModal);
-  writeModal.addEventListener("click", (e) => { if (e.target === writeModal) closeWriteModal(); });
-
-  writeForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    writeError.hidden = true;
-    const title = $("#write-title").value.trim();
-    const content = $("#write-content").value.trim();
-    const categoryId = $("#write-category").value;
-    if (!title || !content) {
-      writeError.textContent = "Title and content are required";
-      writeError.hidden = false;
-      return;
-    }
-    writeSubmitBtn.disabled = true;
-    try {
-      const response = await fetch("/api/articles", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, content, category_id: categoryId || undefined }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Could not save the article");
-      closeWriteModal();
-      alert("Published as KaliNova.");
-      Router.navigate("/");
-    } catch (error) {
-      writeError.textContent = error.message;
-      writeError.hidden = false;
-    } finally {
-      writeSubmitBtn.disabled = false;
-    }
-  });
-
-  /* ------------------------------------------------------------------ */
   /* Mobile drawer                                                      */
   /* ------------------------------------------------------------------ */
   const mobileToggle = $("#mobile-toggle");
@@ -196,7 +131,8 @@
   /* ------------------------------------------------------------------ */
   /* Custom event listeners (for page components)                       */
   /* ------------------------------------------------------------------ */
-  document.addEventListener("open-write", () => openWriteModal());
+  // Story writing is administrator-only and lives in /admin/dashboard, so no
+  // public page dispatches an open-write event.
   document.addEventListener("open-guest-post", () => {
     if (KaliNovaPages.renderGuestPostModal) KaliNovaPages.renderGuestPostModal();
   });
@@ -209,9 +145,33 @@
   /* ------------------------------------------------------------------ */
   document.addEventListener("DOMContentLoaded", () => {
     renderTopicNav();
-    Router.init();
     highlightActiveNav();
     highlightActiveTopic();
+
+    // The ad manifest is fetched before the first route renders.
+    //
+    // AdSlot.placeholder() is synchronous, so the manifest has to be in hand
+    // before any page builds its HTML, otherwise a page would render without its
+    // slots and only pick them up on the next navigation. On a site that is not
+    // monetised the request returns an empty manifest immediately and the
+    // renderer is unchanged; if the request fails, ads.js treats it as "no ads"
+    // and the site still renders.
+    const adsReady =
+      window.KaliNovaAds && typeof window.KaliNovaAds.ready === "function"
+        ? window.KaliNovaAds.ready()
+        : Promise.resolve(null);
+
+    adsReady
+      .catch(() => null)
+      .then(() => {
+        Router.init();
+
+        // After any navigation, push whatever placeholders the new page rendered.
+        // pages.js also calls hydrate directly for the routes it owns, so this is
+        // only a safety net for pages that do not.
+        if (window.KaliNovaAds) window.KaliNovaAds.onRoute(() => window.KaliNovaAds.hydrateAll());
+      });
+
     // The router fires this for clean-path navigation too, so a hashchange
     // listener alone would miss most page changes.
     document.addEventListener("kal:route", () => {

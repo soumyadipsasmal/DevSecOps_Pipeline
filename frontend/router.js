@@ -6,7 +6,7 @@
  * upgraded to the clean path as soon as the app boots, so there is only ever
  * one indexable URL per page.
  *
- * Routes: / , /stories, /blog/:slug, /guest-posts, /news, /category/:slug,
+ * Routes: / , /blog, /stories, /blog/:slug, /guest-posts, /news, /category/:slug,
  *         /portfolio, /marketplace, /cv, /search, /dashboard,
  *         /profile/:id, /settings, /about, /services, /contact, /careers
  */

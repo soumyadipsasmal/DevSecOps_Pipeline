@@ -21,6 +21,9 @@
     logo: "/assets/icon-512.png",
     // Fallback social card for pages that have no article cover of their own.
     defaultOgImage: "/assets/og-image.png",
+    // Used for og:image:alt whenever a page supplies no alt text of its own, so
+    // the tag is never empty.
+    defaultOgImageAlt: "KaliNova",
     tagline: "Read. Write. Share.",
     // Wording reused from the existing homepage and footer copy.
     description:
@@ -44,9 +47,12 @@
     services: "/services",
     contact: "/contact",
     stories: "/stories",
+    blog: "/blog",
     news: "/news",
     careers: "/careers",
     search: "/search",
+    privacy: "/privacy",
+    terms: "/terms",
     blogPrefix: "/blog/",
     categoryPrefix: "/category/",
   };
@@ -87,11 +93,22 @@
       ogType: "website",
     },
     stories: {
+      // /stories is the older name for the same listing. It still renders and
+      // is still linked from older pages, but it is not the indexable URL: the
+      // canonical is always /blog so the two never compete in search results.
       title: "All Stories — KaliNova",
       description:
         "Every story published on KaliNova, covering cinema, fashion, news, wildlife " +
         "and travel.",
-      path: PATHS.stories,
+      path: PATHS.blog,
+      ogType: "website",
+    },
+    blog: {
+      title: "All Stories — KaliNova",
+      description:
+        "Every story published on KaliNova, covering cinema, fashion, news, wildlife " +
+        "and travel.",
+      path: PATHS.blog,
       ogType: "website",
     },
     news: {
@@ -118,6 +135,22 @@
       path: PATHS.search,
       ogType: "website",
       noindex: true,
+    },
+    privacy: {
+      title: "Privacy Policy — KaliNova",
+      description:
+        "What KaliNova collects, which cookies it uses, and what happens to your " +
+        "data. Advertising is not currently running on this site.",
+      path: PATHS.privacy,
+      ogType: "website",
+    },
+    terms: {
+      title: "Terms of Use — KaliNova",
+      description:
+        "The terms that apply to reading and writing on KaliNova, covering " +
+        "republishing, guest posts and external links.",
+      path: PATHS.terms,
+      ogType: "website",
     },
   };
 
@@ -209,6 +242,7 @@
     modifiedTime,
     section,
     tags,
+    imageAlt,
   }) {
     const canonicalPathValue = canonicalPath(url);
     const canonical = abs(canonicalPathValue);
@@ -228,6 +262,11 @@
       "og:site_name": siteName,
       "og:locale": locale,
     };
+    // Alt text written by an administrator in the CMS. Falls back to the
+    // default image's own alt so the tag is never empty.
+    const ogAlt = imageAlt || SITE.defaultOgImageAlt;
+    if (ogAlt) og["og:image:alt"] = ogAlt;
+
     if (type === "article") {
       if (publishedTime) og["article:published_time"] = publishedTime;
       if (modifiedTime) og["article:modified_time"] = modifiedTime;
@@ -246,6 +285,7 @@
       "twitter:description": description,
       "twitter:image": imageUrl,
     };
+    if (ogAlt) tw["twitter:image:alt"] = ogAlt;
     if (type === "article") {
       if (publishedTime) tw["twitter:label1"] = "Published";
       if (publishedTime) upsertMeta('meta[name="twitter:label1"]', { name: "twitter:label1", content: "Published" });
@@ -398,7 +438,8 @@
       publisher: { "@id": `${SITE.origin}/#organization` },
     };
 
-    if (article.excerpt) node.description = article.excerpt;
+    const nodeDescription = article.meta_description || article.excerpt;
+    if (nodeDescription) node.description = nodeDescription;
     if (published) {
       node.datePublished = published;
       node.dateModified = modified;
@@ -485,7 +526,9 @@
     if (!article || !article.slug) return null;
 
     const path = articlePath(article.slug);
-    const description = clamp(excerpt || article.excerpt || article.title, 158);
+    // Prefer the administrator's own meta description, then a page-supplied
+    // excerpt, then the title. Never truncated silently beyond the SEO limit.
+    const description = clamp(article.meta_description || excerpt || article.excerpt || article.title, 158);
     const title = `${clamp(article.title, 95)} | ${SITE.name}`;
 
     setTitle(title);
@@ -497,6 +540,7 @@
       description,
       url: path,
       image: article.cover_image,
+      imageAlt: article.banner_alt,
       type: "article",
       publishedTime: article.published_at || article.created_at,
       modifiedTime: article.updated_at || article.published_at || article.created_at,

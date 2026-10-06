@@ -12,6 +12,12 @@
 # A slug cannot be derived from a numeric id without a database lookup, so the
 # frontend resolves the id and upgrades the URL in the browser instead. A static
 # 301 here would send crawlers to a URL that does not exist.
+#
+# Note: the admin area is NOT part of this static deployment. /admin/login and
+# /admin/dashboard are rendered by app/server.js against PostgreSQL, so on
+# Cloudflare Pages they must fall through to the 404 below instead of the SPA
+# shell (they are Disallowed in robots.txt). Serve the admin area from the
+# Express deployment, or put /admin behind access control at the edge.
 
 # Everything that is not a real file falls through to the SPA shell.
 /*                        /index.html          200

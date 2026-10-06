@@ -2,16 +2,58 @@ require("dotenv").config();
 
 const express = require("express");
 const path = require("path");
+
+const config = require("./config");
 const pool = require("./db");
+const adsService = require("./ads-service");
+const security = require("./security");
+const { adminApi, adminPages } = require("./admin-routes");
 
 const app = express();
-const PORT = process.env.PORT || 3007;
+const PORT = process.env.PORT || config.port;
+
+// Rate limiting and secure cookies depend on req.ip, which is only accurate
+// when the deployment tells us a proxy sits in front. Off by default because a
+// trusted header can be spoofed by any client that reaches the app directly.
+app.set("trust proxy", config.trustProxy);
 
 // Middleware
-app.use(express.json());
+// JSON bodies are capped tightly by default; the admin article endpoints carry
+// article text, so they get their own (still bounded) limit. Registered before
+// the default parser for the same reason as the form parser: whichever parser
+// reads the body first wins.
+const adminArticleJson = express.json({ limit: config.adminBodyLimit });
+const standardJson = express.json({ limit: "100kb" });
+
+app.use((req, res, next) => {
+  const parser = req.path.startsWith("/api/admin/articles")
+    ? adminArticleJson
+    : standardJson;
+
+  return parser(req, res, next);
+});
+
+// Baseline response hardening for the whole site. The stricter
+// Content-Security-Policy for the admin surface is set by admin-routes.
+app.use((req, res, next) => {
+    res.set("X-Content-Type-Options", "nosniff");
+    res.set("X-Frame-Options", "SAMEORIGIN");
+    res.set("Referrer-Policy", "strict-origin-when-cross-origin");
+    next();
+});
 
 // Serve frontend
 app.use(express.static(path.join(__dirname, "../frontend")));
+
+// ===============================
+// ADMIN
+// ===============================
+// Registered after the static handler so real files under /assets win, and
+// before the SPA fallback so the admin area can never be answered with the
+// public shell. /admin/* is server-rendered and requires an administrator
+// session; there is no public registration and no public write path.
+app.use("/admin", adminPages);
+app.use("/api/admin", adminApi);
 
 // Home page
 app.get("/", (req, res) => {
@@ -41,81 +83,71 @@ app.get("/health", async (req, res) => {
 // ===============================
 // SITE AUTHOR
 // ===============================
-// There are no user accounts. Every article is published by the single
-// seeded author, so the site owner can post anything without signing in.
+// There are no public user accounts. Articles are attributed to the single
+// seeded author, so the public site's byline never changes; the admin account
+// is what authorises writing them (see the requireAdmin guard below).
+//
+// The lookup lives in article-service so the admin CMS attributes new articles
+// to the same row instead of keeping a second copy of the query.
 
-const SITE_AUTHOR = "kalinova";
-
-let siteAuthorId = null;
-
-// Resolved once on first use and then cached for the process lifetime.
-async function getSiteAuthorId() {
-    if (siteAuthorId) return siteAuthorId;
-
-    const result = await pool.query(
-        "SELECT id FROM users WHERE username = $1",
-        [SITE_AUTHOR]
-    );
-
-    if (result.rows.length === 0) {
-        throw new Error(
-            `Author "${SITE_AUTHOR}" is missing. Run the database seed scripts.`
-        );
-    }
-
-    siteAuthorId = result.rows[0].id;
-    return siteAuthorId;
-}
+const articleService = require("./article-service");
+const articleValidation = require("./article-validation");
 
 // ===============================
 // CREATE ARTICLE
 // ===============================
+// Administrators only. security.requireAdminSession answers 401 when there is no
+// valid session and 403 for a signed-in account without the admin role, so a
+// visitor cannot create content even by calling this endpoint directly.
+//
+// This legacy endpoint predates the CMS and stays in place for any existing
+// caller, but it now shares the CMS path: the same validation, the same slug
+// generation and the same sanitiser. New work should use
+// POST /api/admin/articles, which additionally supports drafts, meta
+// descriptions and banner alt text.
 
-app.post("/api/articles", async (req, res) => {
+app.post("/api/articles", security.requireAdminSession, async (req, res, next) => {
     try {
-        const { title, content, cover_image, category_id } = req.body;
+        const { title, content, cover_image, category_id } = req.body || {};
 
-        // Validate input
-        if (!title || !content) {
+        const validation = articleValidation.validateArticle(
+            {
+                title,
+                content,
+                cover_image,
+                category_id,
+                meta_description: "Article created through the legacy API endpoint.",
+                // The legacy endpoint has always published immediately.
+                status: articleValidation.STATUS_PUBLISHED
+            },
+            { isDraft: false }
+        );
+
+        if (!validation.ok) {
             return res.status(400).json({
-                error: "Title and content are required"
+                error: "Validation failed",
+                errors: validation.errors
             });
         }
 
-        // Create URL-friendly slug
-        const slug = title
-            .toLowerCase()
-            .trim()
-            .replace(/[^a-z0-9]+/g, "-")
-            .replace(/^-+|-+$/g, "");
+        const article = await articleService.createArticle(validation.values);
 
-        // Save article
-        const result = await pool.query(
-            `INSERT INTO articles
-            (author_id, title, slug, content, cover_image, category_id)
-            VALUES ($1, $2, $3, $4, $5, $6)
-            RETURNING id, author_id, title, slug, content, cover_image, category_id, created_at`,
-            [
-                await getSiteAuthorId(),
-                title,
-                slug,
-                content,
-                cover_image || null,
-                category_id || null
-            ]
-        );
-
-        res.status(201).json({
+        return res.status(201).json({
             message: "Article created successfully",
-            article: result.rows[0]
+            article: {
+                id: article.id,
+                author_id: article.author_id,
+                title: article.title,
+                slug: article.slug,
+                content: article.content,
+                cover_image: article.cover_image,
+                category_id: article.category_id,
+                status: article.status,
+                created_at: article.created_at
+            }
         });
-
     } catch (error) {
-        console.error("Article creation error:", error);
-
-        res.status(500).json({
-            error: "Internal server error"
-        });
+        return next(error);
     }
 });
 // ===============================
@@ -137,6 +169,9 @@ app.get("/api/categories", async (req, res) => {
 // ===============================
 // GET ALL ARTICLES
 // ===============================
+// PUBLIC SURFACE: published articles only. The status filter is not a query
+// parameter, so no request shape can ask for a draft. Drafts are reachable
+// exclusively through /api/admin/articles, which requires an admin session.
 
 app.get("/api/articles", async (req, res) => {
     try {
@@ -148,13 +183,17 @@ app.get("/api/articles", async (req, res) => {
                 articles.title,
                 articles.slug,
                 articles.content,
+                articles.body_format,
                 LEFT(articles.content, 200) AS excerpt,
+                articles.meta_description,
                 articles.cover_image,
+                articles.banner_alt,
                 articles.is_featured,
                 articles.is_trending,
                 articles.status,
                 articles.published_at,
                 articles.created_at,
+                articles.updated_at,
                 users.id AS author_id,
                 users.username AS author_username,
                 users.avatar_url AS author_avatar,
@@ -166,7 +205,7 @@ app.get("/api/articles", async (req, res) => {
             LEFT JOIN categories ON articles.category_id = categories.id
         `;
 
-        const conditions = [];
+        const conditions = ["articles.status = 'published'"];
         const params = [];
 
         if (search) {
@@ -183,9 +222,7 @@ app.get("/api/articles", async (req, res) => {
             conditions.push(`articles.is_trending = true`);
         }
 
-        if (conditions.length > 0) {
-            query += " WHERE " + conditions.join(" AND ");
-        }
+        query += " WHERE " + conditions.join(" AND ");
 
         query += " ORDER BY articles.created_at DESC LIMIT 50";
 
@@ -207,12 +244,16 @@ const ARTICLE_COLUMNS = `
     articles.title,
     articles.slug,
     articles.content,
+    articles.body_format,
+    articles.meta_description,
     articles.cover_image,
+    articles.banner_alt,
     articles.is_featured,
     articles.is_trending,
     articles.status,
     articles.published_at,
     articles.created_at,
+    articles.updated_at,
     users.id AS author_id,
     users.username AS author_username,
     users.avatar_url AS author_avatar,
@@ -227,17 +268,21 @@ const ARTICLE_JOINS = `
     LEFT JOIN categories ON articles.category_id = categories.id
 `;
 
+/* A draft answers exactly like a slug that does not exist: same status, same
+ * body, so the public URL of an unpublished article cannot be probed. */
+const ARTICLE_NOT_FOUND = { error: "Article not found" };
+
 app.get("/api/articles/:id", async (req, res) => {
     try {
         const { id } = req.params;
         const result = await pool.query(`
             SELECT ${ARTICLE_COLUMNS}
             ${ARTICLE_JOINS}
-            WHERE articles.id = $1
+            WHERE articles.id = $1 AND articles.status = 'published'
         `, [id]);
 
         if (result.rows.length === 0) {
-            return res.status(404).json({ error: "Article not found" });
+            return res.status(404).json(ARTICLE_NOT_FOUND);
         }
 
         res.json(result.rows[0]);
@@ -261,11 +306,11 @@ app.get("/api/articles/slug/:slug", async (req, res) => {
         const result = await pool.query(`
             SELECT ${ARTICLE_COLUMNS}
             ${ARTICLE_JOINS}
-            WHERE articles.slug = $1
+            WHERE articles.slug = $1 AND articles.status = 'published'
         `, [slug]);
 
         if (result.rows.length === 0) {
-            return res.status(404).json({ error: "Article not found" });
+            return res.status(404).json(ARTICLE_NOT_FOUND);
         }
 
         res.json(result.rows[0]);
@@ -281,23 +326,26 @@ app.get("/api/articles/slug/:slug", async (req, res) => {
 // ===============================
 // Images embedded in an article body, best match first. Seeded by
 // `npm run seed:images`, which scores them against the article text.
+// Joined to articles so a draft's gallery cannot be read.
 
 app.get("/api/articles/:id/images", async (req, res) => {
     try {
         const { id } = req.params;
         const result = await pool.query(`
             SELECT
-                id,
-                file_path,
-                position,
-                title,
-                alt_text,
-                creator,
-                license,
-                source
+                article_images.id,
+                article_images.file_path,
+                article_images.position,
+                article_images.title,
+                article_images.alt_text,
+                article_images.creator,
+                article_images.license,
+                article_images.source
             FROM article_images
-            WHERE article_id = $1
-            ORDER BY position ASC
+            JOIN articles ON articles.id = article_images.article_id
+            WHERE article_images.article_id = $1
+              AND articles.status = 'published'
+            ORDER BY article_images.position ASC
         `, [id]);
 
         res.json({ images: result.rows });
@@ -308,110 +356,89 @@ app.get("/api/articles/:id/images", async (req, res) => {
 });
 
 // ===============================
+// PUBLIC AD MANIFEST
+// ===============================
+// Read-only and unauthenticated, because the frontend needs it before anything
+// can be rendered. The response is assembled by ads-service, which returns an
+// empty `ads` array and `enabled: false` while the site-wide switch is off, no
+// AdSense network is enabled, or no valid publisher id is saved. In that state
+// this endpoint leaks nothing about the site's ad configuration.
+//
+// A database failure answers with the all-off manifest rather than a 500, so a
+// broken database cannot make the frontend retry in a loop while trying to show
+// an ad. The site loses its ads; it does not lose its content.
+
+app.get("/api/ads", async (req, res) => {
+    try {
+        const manifest = await adsService.getPublicManifest();
+
+        // Short shared cache: one place on the edge serves the same manifest to
+        // many readers, and a switch-off has to reach readers promptly.
+        res.set("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
+        res.json(manifest);
+    } catch (error) {
+        console.error("Get ad manifest error:", error);
+        res.set("Cache-Control", "no-store");
+        res.json({
+            enabled: false,
+            consent_required: true,
+            consent_script_url: "",
+            publisher_id: "",
+            ads: []
+        });
+    }
+});
+
+// ===============================
 // SITEMAP
 // ===============================
-// Generated from the database on every request so newly published stories are
-// discoverable without a deploy. Static pages come from SITE_PAGES; the database
-// supplies the article and topic URLs.
+// /sitemap.xml is a static file: frontend/sitemap.xml. It is served by the
+// express.static middleware at the top of this file, which runs before any
+// route below, so no handler is needed here. Cloudflare Pages serves the same
+// file straight from the frontend directory.
+//
+// Regenerate it after publishing with:  node scripts/generate-sitemap.js
+// That script owns the URL list, so this file and the static XML cannot drift.
 
-const SITE_ORIGIN = process.env.SITE_ORIGIN || "https://kalinova.in";
+// ===============================
+// PUBLIC ARTICLE PAGES
+// ===============================
+// /blog/<slug> is a real page, not a client-side guess, so a slug that does not
+// exist — or belongs to a draft — has to answer 404 with the styled page instead
+// of a 200 shell that would let a crawler index an empty document.
+//
+// If the database is unreachable the shell is served instead, because a working
+// site matters more than the status code of one URL during an outage.
 
-// Only pages that are genuinely meant to be indexed. Tool and account views are
-// deliberately absent.
-const SITE_PAGES = [
-    { path: "/", changefreq: "daily", priority: "1.0" },
-    { path: "/stories", changefreq: "daily", priority: "0.9" },
-    { path: "/news", changefreq: "daily", priority: "0.7" },
-    { path: "/about", changefreq: "monthly", priority: "0.6" },
-    { path: "/services", changefreq: "monthly", priority: "0.6" },
-    { path: "/contact", changefreq: "monthly", priority: "0.5" },
-    { path: "/careers", changefreq: "monthly", priority: "0.4" },
-];
+const ARTICLE_PAGE_PATTERN = /^\/(?:blog|stories)\/([^/]+)\/?$/;
 
-const escapeXml = value =>
-    String(value)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&apos;");
+app.get(ARTICLE_PAGE_PATTERN, async (req, res, next) => {
+    const identifier = String(req.params[0] || "").slice(0, 255);
+    if (!identifier) return next();
 
-const urlEntry = ({ loc, lastmod, changefreq, priority }) =>
-    [
-        "  <url>",
-        `    <loc>${escapeXml(loc)}</loc>`,
-        lastmod ? `    <lastmod>${escapeXml(lastmod)}</lastmod>` : null,
-        changefreq ? `    <changefreq>${changefreq}</changefreq>` : null,
-        priority ? `    <priority>${priority}</priority>` : null,
-        "  </url>"
-    ]
-        .filter(Boolean)
-        .join("\n");
-
-app.get("/sitemap.xml", async (req, res) => {
     try {
-        const [articles, categories] = await Promise.all([
-            pool.query(`
-                SELECT slug, published_at, created_at
-                FROM articles
-                WHERE status = 'published' AND slug IS NOT NULL
-                ORDER BY COALESCE(published_at, created_at) DESC
-            `),
-            pool.query("SELECT slug FROM categories ORDER BY display_order ASC")
-        ]);
-
-        const today = new Date().toISOString().slice(0, 10);
-
-        const entries = SITE_PAGES.map(page =>
-            urlEntry({
-                loc: `${SITE_ORIGIN}${page.path}`,
-                lastmod: today,
-                changefreq: page.changefreq,
-                priority: page.priority
-            })
-        );
-
-        for (const category of categories.rows) {
-            entries.push(
-                urlEntry({
-                    loc: `${SITE_ORIGIN}/category/${category.slug}`,
-                    changefreq: "weekly",
-                    priority: "0.6"
-                })
+        const numericId = /^[0-9]{1,9}$/.test(identifier) ? Number.parseInt(identifier, 10) : null;
+        const result = numericId
+            ? await pool.query(
+                "SELECT 1 FROM articles WHERE status = 'published' AND (id = $1 OR slug = $2) LIMIT 1",
+                [numericId, identifier]
+            )
+            : await pool.query(
+                "SELECT 1 FROM articles WHERE status = 'published' AND slug = $1 LIMIT 1",
+                [identifier]
             );
+
+        if (result.rows.length > 0) {
+            return res.sendFile(path.join(__dirname, "../frontend/index.html"));
         }
 
-        for (const article of articles.rows) {
-            // The articles table tracks no updated_at, so the last change we can
-            // honestly report is the publication date.
-            const lastmod = article.published_at || article.created_at;
-            entries.push(
-                urlEntry({
-                    loc: `${SITE_ORIGIN}/blog/${article.slug}`,
-                    lastmod: lastmod ? new Date(lastmod).toISOString() : undefined,
-                    changefreq: "monthly",
-                    priority: "0.8"
-                })
-            );
-        }
-
-        const xml = [
-            '<?xml version="1.0" encoding="UTF-8"?>',
-            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
-            ...entries,
-            "</urlset>",
-            ""
-        ].join("\n");
-
-        res.set("Content-Type", "application/xml; charset=utf-8");
-        res.set("Cache-Control", "public, max-age=1800");
-        res.send(xml);
-
+        res.set("X-Robots-Tag", "noindex, follow");
+        return res.status(404).sendFile(path.join(__dirname, "../frontend/404.html"), err => {
+            if (err) next(err);
+        });
     } catch (error) {
-        console.error("Sitemap error:", error);
-        res.status(500).type("application/xml").send(
-            '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>\n'
-        );
+        // Database trouble must not take the public site down.
+        return next();
     }
 });
 
@@ -433,7 +460,13 @@ const SPA_ROUTES = [
     /^\/careers$/,
     /^\/search$/,
     /^\/guest-posts$/,
+    // Legal pages, linked from the footer and the sidebar signup copy.
+    /^\/privacy$/,
+    /^\/terms$/,
     /^\/category\/[^/]+$/,
+    // The blog listing is /blog; /stories is its older alias. Both render the
+    // same page, so both must reach the shell rather than the 404.
+    /^\/blog\/?$/,
     /^\/blog\/[^/]+$/,
     /^\/stories\/[^/]+$/,
     /^\/profile\/[^/]+$/,
@@ -467,19 +500,42 @@ app.use((req, res, next) => {
     });
 });
 
+// Unmatched API paths have no HTML representation. Without this they would fall
+// through to the Express default 404 page, which returns markup to clients that
+// asked for JSON.
+app.use((req, res) => {
+    res.status(404).json({ error: "Not found" });
+});
+
 // ===============================
 // ERROR HANDLER
 // ===============================
+// Only the message is logged. Stack traces and database details never reach a
+// response, in development or production.
 
 app.use((err, req, res, next) => {
-    console.error("Unhandled error:", err);
+    if (res.headersSent) return next(err);
+
+    console.error("Unhandled error:", err.message);
+
+    if (req.path.startsWith("/admin") && !security.wantsJson(req)) {
+        res.set("Content-Type", "text/plain; charset=utf-8");
+        return res.status(500).send("Internal server error");
+    }
+
     res.status(500).json({ error: "Internal server error" });
 });
 
 // ===============================
 // START SERVER
 // ===============================
+// Exporting the app lets a test runner mount it without opening a port; the
+// container still starts the listener directly.
 
-app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on port ${PORT}`);
-});
+if (require.main === module) {
+    app.listen(PORT, "0.0.0.0", () => {
+        console.log(`Server running on port ${PORT}`);
+    });
+}
+
+module.exports = app;

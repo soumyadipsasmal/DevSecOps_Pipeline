@@ -1,0 +1,190 @@
+/* ==========================================================================
+   Ad slots
+   ==========================================================================
+   Rules this file has to respect:
+
+   1. A slot is invisible until an ad is actually configured. The markup for an
+      unconfigured placement is never inserted at all, so there is nothing here
+      to style in the default state.
+   2. Height is reserved before the ad arrives, from the min-height the admin
+      sets per placement. That is the whole reason the reservation exists: an ad
+      that pops in must not push the article down.
+   3. No animation, no transition, no fixed aspect ratio. Both of those change
+      the box the ad lives in and cost the same layout shift as no reservation.
+   4. An ad that fails to load collapses, rather than leaving a labelled hole.
+      The failure is invisible; the article just reads normally.
+
+   A note on labelling: the container carries aria-label="Advertisement" from
+   ads.js, which is the honest description and also what screen readers need to
+   distinguish it from editorial content.
+   ------------------------------------------------------------------------ */
+
+.ad-slot {
+  display: block;
+  margin: 0 0 24px;
+  /* min-height is set inline per placement, from the admin configuration. */
+}
+
+.ad-slot > ins {
+  display: block;
+  width: 100%;
+}
+
+/* A slot with no reserved height and no ad in it must not add any space. */
+.ad-slot:empty {
+  display: none;
+  margin: 0;
+}
+
+/* Sidebar slots. The sidebar is already a narrow column, so a wide leaderboard
+   does not fit; the network chooses a matching size for the container. */
+.sidebar .ad-slot {
+  margin: 0 0 20px;
+}
+
+/* In-article slot. Centred so a 300x250 block does not hang off the left edge
+   of a 68ch measure. Margin is asymmetric so the slot is visually associated
+   with the paragraph above it. */
+.ad-slot-incontent {
+  display: block;
+  margin: 32px auto;
+  max-width: 100%;
+}
+
+.article-detail-content .ad-slot {
+  margin: 32px 0;
+}
+
+/* Header and footer banner placements. Centred, with a gutter so the slot never
+   touches the viewport edge on a narrow screen. */
+.footer-ad {
+  display: block;
+  width: 100%;
+}
+
+.footer-ad:empty {
+  display: none;
+}
+
+.footer-ad .ad-slot {
+  margin: 0 auto;
+  max-width: 970px;
+  padding: 0 16px;
+}
+
+/* Hidden by device class. ads.js sets display:none for a placement whose
+   desktop or mobile flag is off; this covers the reserved space too, so a
+   hidden slot costs nothing. */
+.ad-slot[hidden],
+.ad-slot.is-hidden {
+  display: none;
+  margin: 0;
+}
+
+/* ==========================================================================
+   Consent banner
+   ==========================================================================
+   Shown only once an administrator has switched ads on and the reader has not
+   yet chosen. It is built with DOM methods rather than innerHTML, so the copy
+   cannot be injected from the manifest.
+
+   It is a fixed bar rather than a modal: a modal that blocks the page on a
+   monetised site is a worse experience than a bar, and the reader can decline
+   and keep reading either way.
+   ------------------------------------------------------------------------ */
+.ad-consent {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  background: var(--paper-raised);
+  border-top: 1px solid var(--border-strong);
+  box-shadow: 0 -4px 20px rgba(11, 31, 58, 0.18);
+  /* The banner appears once, after the reader has seen the page. */
+  animation: ad-consent-in 180ms ease-out;
+}
+
+@keyframes ad-consent-in {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ad-consent {
+    animation: none;
+  }
+}
+
+.ad-consent-text {
+  flex: 1 1 320px;
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+
+.ad-consent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.ad-consent-button {
+  padding: 9px 16px;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.ad-consent-button:hover {
+  background: var(--paper);
+}
+
+.ad-consent-button--accept {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.ad-consent-button--accept:hover {
+  background: var(--accent-dark);
+}
+
+.ad-consent-link {
+  font-size: 0.8125rem;
+  color: var(--ink-muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.ad-consent-link:hover {
+  color: var(--ink);
+}
+
+@media (max-width: 620px) {
+  .ad-consent {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 14px 16px;
+  }
+
+  .ad-consent-actions {
+    justify-content: space-between;
+  }
+
+  .ad-consent-button {
+    flex: 1 1 auto;
+  }
+}

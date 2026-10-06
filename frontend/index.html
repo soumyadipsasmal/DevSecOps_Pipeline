@@ -42,7 +42,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="/style.css">
+<!-- Ad slot styling. Present unconditionally: it only has rules for elements
+     ads.js creates, and ads.js creates none until ads are switched on. -->
+<link rel="stylesheet" href="/assets/ads.css">
 
 <!-- Structured data. Identifiers are the site entities only; the page-specific
      WebPage node is added by seo.js at render time. -->
@@ -162,6 +165,8 @@
         <li><a href="/services">Services</a></li>
         <li><a href="/careers">Careers</a></li>
         <li><a href="/contact">Contact</a></li>
+        <li><a href="/privacy">Privacy Policy</a></li>
+        <li><a href="/terms">Terms of Use</a></li>
       </ul>
     </nav>
 
@@ -175,49 +180,33 @@
     </div>
   </div>
 
+  <!-- Footer ad placement. Empty on an unmonetised site: ads.js decides whether
+       this becomes an ad slot, and it leaves the container empty otherwise. -->
+  <div class="footer-ad" id="footer-ad-slot"></div>
+
   <div class="footer-bottom">
     <p>&copy; 2026 KaliNova. All rights reserved.</p>
     <p>Made with care for writers, readers, and creators.</p>
   </div>
 </footer>
 
-<!-- ============ WRITE MODAL ============ -->
+<!-- ============ NOTES ============ -->
+<!-- There is no write modal on the public site. Articles are created by
+     administrators in /admin/dashboard, and POST /api/articles is guarded by
+     requireAdmin on the server, so no visitor can publish. -->
 
-<!-- ============ WRITE MODAL ============ -->
-<div class="modal-overlay" id="write-modal" hidden>
-  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="write-modal-title">
-    <div class="modal-header">
-      <h2 id="write-modal-title">Write a story</h2>
-      <button type="button" class="icon-btn modal-close" id="write-modal-close" aria-label="Close">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
-      </button>
-    </div>
-    <form id="write-form" novalidate>
-      <div class="modal-field">
-        <label for="write-title">Title</label>
-        <input type="text" id="write-title" name="title" required>
-      </div>
-      <div class="modal-field">
-        <label for="write-category">Category</label>
-        <select id="write-category" name="category_id"></select>
-      </div>
-      <div class="modal-field">
-        <label for="write-content">Content</label>
-        <textarea id="write-content" name="content" rows="10" required></textarea>
-      </div>
-      <p class="modal-error" id="write-error" hidden></p>
-      <div class="modal-actions">
-        <button type="submit" class="btn btn-primary">Save draft</button>
-      </div>
-    </form>
-  </div>
-</div>
-
-<!-- Scripts: SEO config, then router, pages and the main controller. seo.js
-     must load before pages.js so the first render can describe itself. -->
-<script src="seo.js"></script>
-<script src="router.js"></script>
-<script src="pages.js"></script>
-<script src="script.js"></script>
+<!-- Scripts: SEO config, then the sidebar blocks and the ad component, router,
+     pages and the main controller. seo.js must load before pages.js so the first
+     render can describe itself, sidebar.js before pages.js so the sidebar markup
+     is available on the first paint, and ads.js before pages.js for the same
+     reason: AdSlot renders synchronously, so it has to be defined at first paint.
+     ads.js loads no third-party script; it only fetches GET /api/ads, which is
+     empty until an administrator switches ads on. -->
+<script src="/seo.js"></script>
+<script src="/assets/sidebar.js"></script>
+<script src="/assets/ads.js"></script>
+<script src="/router.js"></script>
+<script src="/pages.js"></script>
+<script src="/script.js"></script>
 </body>
 </html>

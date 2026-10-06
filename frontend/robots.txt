@@ -5,6 +5,8 @@
 
 User-agent: *
 Allow: /
+Disallow: /admin
+Disallow: /api/admin
 Disallow: /dashboard
 Disallow: /settings
 Disallow: /cv

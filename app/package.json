@@ -2,11 +2,20 @@
   "name": "app",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "migrate": "node migrate.js",
+    "create-admin": "node create-admin.js",
     "seed:images": "node seed-images.js",
-    "test": "node seo-smoke-test.js"
+    "sitemap": "node ../scripts/generate-sitemap.js",
+    "test": "node seo-smoke-test.js && node admin-auth-test.js && node cms-test.js && node admin-ads-test.js && node ads-test.js && node admin-smoke-test.js",
+    "test:seo": "node seo-smoke-test.js",
+    "test:admin": "node admin-auth-test.js",
+    "test:cms": "node cms-test.js",
+    "test:admin:ads": "node admin-ads-test.js",
+    "test:ads": "node ads-test.js",
+    "test:admin:live": "node admin-smoke-test.js"
   },
   "keywords": [],
   "author": "",
