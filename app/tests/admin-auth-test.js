@@ -21,10 +21,10 @@ process.env.ADMIN_SESSION_SECRET =
 
 const jwt = require("jsonwebtoken");
 
-const adminService = require("./admin-service");
-const adminViews = require("./admin-views");
-const config = require("./config");
-const security = require("./security");
+const adminService = require("../admin-service");
+const adminViews = require("../admin-views");
+const config = require("../config");
+const security = require("../security");
 
 let failures = 0;
 let checks = 0;
@@ -470,7 +470,7 @@ section("[9] No secrets in source");
 
   let clean = true;
   for (const file of files) {
-    const source = stripComments(fs.readFileSync(path.join(__dirname, file), "utf8"));
+    const source = stripComments(fs.readFileSync(path.join(__dirname, "..", file), "utf8"));
 
     for (const pattern of forbidden) {
       for (const match of source.matchAll(pattern)) {
@@ -491,6 +491,7 @@ section("[10] The app refuses to start with an unusable secret");
 {
   // config.js is loaded once per process, so the production cases run in child
   // processes with their own environment.
+  const path = require("path");
   const { spawnSync } = require("child_process");
 
   function loadInProduction(env) {
@@ -498,7 +499,7 @@ section("[10] The app refuses to start with an unusable secret");
       process.execPath,
       ["-e", "require('./config')"],
       {
-        cwd: __dirname,
+        cwd: path.join(__dirname, ".."),
         encoding: "utf8",
         env: Object.assign({}, process.env, { NODE_ENV: "production" }, env)
       }
@@ -553,7 +554,7 @@ section("[10] The app refuses to start with an unusable secret");
   );
 
   const dev = spawnSync(process.execPath, ["-e", "require('./config')"], {
-    cwd: __dirname,
+    cwd: path.join(__dirname, ".."),
     encoding: "utf8",
     env: Object.assign({}, process.env, { NODE_ENV: "development" })
   });

@@ -7,7 +7,7 @@ const fs = require("fs");
 const vm = require("vm");
 const path = require("path");
 
-const REPO = path.resolve(__dirname, "..");
+const REPO = path.resolve(__dirname, "..", "..");
 
 class El {
   constructor(tag) {

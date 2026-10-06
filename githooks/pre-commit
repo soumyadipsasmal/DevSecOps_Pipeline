@@ -1,0 +1,67 @@
+#!/bin/sh
+# KaliNova — pre-commit secret scan.
+#
+# Enable once per clone:
+#   git config core.hooksPath githooks
+#
+# Emergency bypass (never for a real secret):
+#   SKIP_SECRET_SCAN=1 git commit ...
+#
+# The same scanner runs on every commit here and again in CI over the whole
+# history, so a key that slips past one of them still stops the pipeline.
+
+set -e
+
+if [ "${SKIP_SECRET_SCAN:-0}" = "1" ]; then
+  echo "pre-commit: secret scan skipped (SKIP_SECRET_SCAN=1)." >&2
+  exit 0
+fi
+
+GITLEAKS=""
+if command -v gitleaks >/dev/null 2>&1; then
+  GITLEAKS="gitleaks"
+elif [ -n "${HOME:-}" ] && [ -x "$HOME/.local/bin/gitleaks" ]; then
+  GITLEAKS="$HOME/.local/bin/gitleaks"
+elif [ -n "${LOCALAPPDATA:-}" ] && [ -x "$LOCALAPPDATA/Microsoft/WinGet/Links/gitleaks.exe" ]; then
+  GITLEAKS="$LOCALAPPDATA/Microsoft/WinGet/Links/gitleaks.exe"
+elif [ -n "${LOCALAPPDATA:-}" ]; then
+  for candidate in "$LOCALAPPDATA"/Microsoft/WinGet/Packages/Gitleaks*/gitleaks.exe; do
+    if [ -x "$candidate" ]; then
+      GITLEAKS="$candidate"
+      break
+    fi
+  done
+else
+  for candidate in /mnt/c/Users/*/AppData/Local/Microsoft/WinGet/Packages/Gitleaks*/gitleaks.exe; do
+    if [ -x "$candidate" ]; then
+      GITLEAKS="$candidate"
+      break
+    fi
+  done
+fi
+
+if [ -z "$GITLEAKS" ]; then
+  cat >&2 <<'EOF'
+pre-commit: gitleaks is not installed, so the staged changes cannot be scanned.
+
+  install: https://github.com/gitleaks/gitleaks#installation
+           winget install gitleaks.gitleaks     (Windows)
+           wsl: see docs/security-pipeline.md    (Linux)
+
+  or bypass this one commit:  SKIP_SECRET_SCAN=1 git commit ...
+EOF
+  exit 1
+fi
+
+echo "pre-commit: scanning staged changes for secrets..."
+
+if ! "$GITLEAKS" git --staged --redact --no-banner; then
+  cat >&2 <<'EOF'
+pre-commit: possible secret in the staged changes — commit blocked.
+
+  Remove the value, rotate it wherever it was used, then stage again.
+  Only when nothing here is a credential at all, bypass a single commit by
+  running git commit with SKIP_SECRET_SCAN=1 in the environment.
+EOF
+  exit 1
+fi

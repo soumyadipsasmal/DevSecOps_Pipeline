@@ -1,51 +1,255 @@
-name: DevSecOps CI/CD & Security Pipeline
+name: DevSecOps Security Pipeline
+
+# Seven gates, one per layer of the pipeline. Every job fails the build on its
+# own findings, so a green run means all of them passed:
+#
+#   1. secrets      gitleaks (pre-commit hook, same scanner) + TruffleHog
+#   2. SAST         Semgrep p/ci on app/ and frontend/
+#   3. SCA          npm audit --audit-level=high (Dependabot opens the fixes)
+#   4. IaC          Checkov on terraform/
+#   5. container    Trivy on the freshly built image
+#   6. tests        app/tests/* against a real PostgreSQL, then the live admin suite
+#   7. DAST         OWASP ZAP baseline against the compose deployment
 
 on:
   push:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  sast_scan:
-    name: Code & Secret Security Scan
+
+  secret_scan:
+    name: "1 Secrets: gitleaks + TruffleHog"
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Source Code
+      - name: Checkout full history
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - name: Run Secret Detection (Trufflehog)
+      # Same scanner and version as githooks/pre-commit, but over the whole
+      # history instead of the staged diff.
+      - name: gitleaks over the full history
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz \
+            | sudo tar -xz -C /usr/local/bin gitleaks
+          gitleaks git --redact --no-banner
+
+      - name: TruffleHog over the pushed history
         uses: trufflesecurity/trufflehog@main
         with:
           head: ${{ github.sha }}
           extra_args: --debug
 
-  docker_security_scan:
-    name: Docker Image Vulnerability Scan
+  sast:
+    name: "2 SAST: Semgrep"
     runs-on: ubuntu-latest
-    needs: sast_scan
     steps:
-      - name: Checkout Source Code
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Semgrep
+        run: pip install semgrep
+
+      # p/ci is the curated community CI ruleset: no account, no token.
+      # --error turns any finding into a non-zero exit, i.e. a red build.
+      - name: Semgrep scan of app/ and frontend/
+        run: semgrep scan --config p/ci --metrics=off --error app frontend
+
+  dependency_scan:
+    name: "3 SCA: npm audit"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install production dependencies
+        working-directory: app
+        run: npm ci
+
+      # Fails on high and critical advisories. Dependabot (.github/dependabot.yml)
+      # opens the pull requests that keep this green.
+      - name: npm audit
+        working-directory: app
+        run: npm audit --audit-level=high
+
+  iac_scan:
+    name: "4 IaC: Checkov (terraform/)"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      # --hard-fail-on HIGH keeps low and medium hygiene findings visible in the
+      # log without blocking the build on them.
+      - name: Checkov scan of terraform/
+        run: |
+          docker run --rm -v "$PWD/terraform:/tf" bridgecrew/checkov \
+            -d /tf --compact --hard-fail-on HIGH
+
+  container_scan:
+    name: "5 Container: Trivy"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
         uses: actions/checkout@v5
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Build Local Docker Image
+      - name: Build the image
         uses: docker/build-push-action@v6
         with:
           context: .
           load: true
           tags: devsecops-app:${{ github.sha }}
 
-      - name: Run Trivy Security Scan on Container
-        uses: aquasecurity/trivy-action@master
+      # The skip-dir covers the npm/corepack toolchain that ships inside the
+      # node:22-alpine base image: it is build-time tooling, never executed at
+      # runtime, and only a base-image bump can fix it. Everything the service
+      # actually runs (alpine packages and app/node_modules) is still gated.
+      - name: Trivy vulnerability scan
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:latest image \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --exit-code 1 \
+            --skip-dirs /usr/local/lib/node_modules/npm \
+            --no-progress \
+            "devsecops-app:${{ github.sha }}"
+
+  tests:
+    name: "6 Tests"
+    runs-on: ubuntu-latest
+    env:
+      DB_HOST: localhost
+      DB_PORT: "5434"
+      DB_NAME: medium_clone
+      DB_USER: medium_user
+      DB_PASSWORD: medium_pass
+      JWT_SECRET: ci-pipeline-not-a-real-secret-value
+      ADMIN_SESSION_SECRET: ci-pipeline-session-9f3c1a7b25d84e60a1c2f5b7d9e3a604
+      ADMIN_EMAIL: ci-admin@example.com
+      ADMIN_PASSWORD: ci-admin-password-2026
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
         with:
-          image-ref: 'devsecops-app:${{ github.sha }}'
-          format: 'table'
-          exit-code: '0'
-          ignore-unfixed: true
-          vuln-type: 'os,library'
-          severity: 'CRITICAL,HIGH'
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      # Fresh volume: the schema, seeds and admin migrations are applied by
+      # docker-entrypoint-initdb.d, and --wait blocks until they are done.
+      - name: Start PostgreSQL
+        run: docker compose up -d --wait db
+
+      - name: Install dependencies
+        working-directory: app
+        run: npm ci
+
+      # SEO smoke, admin auth, CMS, ads and the admin smoke suite. Any failing
+      # check exits non-zero and fails this job.
+      - name: Run the test suites
+        working-directory: app
+        run: npm test
+
+      - name: Create the CI administrator
+        working-directory: app
+        run: npm run create-admin
+
+      - name: Start the application
+        working-directory: app
+        run: |
+          nohup npm start > /tmp/app.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:3007/ > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::the server did not start"
+          cat /tmp/app.log
+          exit 1
+
+      - name: Live admin checks over HTTP
+        working-directory: app
+        run: npm run test:admin:live
+
+      - name: Server log on failure
+        if: failure()
+        run: cat /tmp/app.log
+
+  dast:
+    name: "7 DAST: OWASP ZAP baseline"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Start the staging deployment
+        run: docker compose up --build -d
+
+      - name: Wait for the application
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:3007/ > /dev/null; then
+              echo "application is up"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::the application did not become ready"
+          docker compose logs --tail 200
+          exit 1
+
+      # Baseline scan: passive analysis of every page the spider reaches.
+      # -I keeps informational warnings in the report without failing the run;
+      # FAIL-level alerts still fail it. Reports are uploaded either way.
+      - name: ZAP baseline scan
+        run: |
+          mkdir -p zap-reports
+          chmod 777 zap-reports
+          docker run --rm --network host \
+            -v "$PWD/zap-reports:/zap/wrk" \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py -t http://localhost:3007 \
+              -r zap-report.html -x zap-report.xml -I
+
+      - name: Upload the ZAP report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-baseline-report
+          path: zap-reports/
+          if-no-files-found: warn
+
+      - name: Stop the staging deployment
+        if: always()
+        run: docker compose down -v

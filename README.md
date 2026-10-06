@@ -55,6 +55,63 @@ npm start                     # http://localhost:3007
 | `npm run test:admin` | Offline admin authentication tests (no database needed) |
 | `npm run test:admin:live` | End-to-end admin HTTP checks against a running server |
 
+## SECURITY PIPELINE
+
+Every commit is checked locally, every push is checked by the seven jobs in
+`.github/workflows/devsecops-pipeline.yml`, and Dependabot keeps the inputs to
+both current.
+
+### Pre-commit secret scan
+
+```bash
+git config core.hooksPath githooks     # once per clone
+```
+
+`githooks/pre-commit` runs `gitleaks git --staged` against the index and blocks
+the commit when it finds a key. It needs [gitleaks](https://github.com/gitleaks/gitleaks#installation)
+installed (`winget install gitleaks.gitleaks` on Windows); if it is missing the
+hook refuses to pass rather than scanning nothing. One-off bypass:
+`SKIP_SECRET_SCAN=1 git commit ...`. CI repeats the same scan over the full
+history, together with TruffleHog.
+
+### CI stages
+
+| # | Gate | Tool | Fails the build when |
+| --- | --- | --- | --- |
+| 1 | Secrets | gitleaks 8.30.1 + TruffleHog | a secret exists anywhere in the history |
+| 2 | SAST | Semgrep `p/ci` on `app/` and `frontend/` | any rule matches |
+| 3 | SCA | `npm audit --audit-level=high` | a high or critical advisory is installed |
+| 4 | IaC | Checkov on `terraform/` | a high-severity misconfiguration |
+| 5 | Container | Trivy on the freshly built image | an unfixed HIGH/CRITICAL CVE in the runtime image |
+| 6 | Tests | `npm test`, then `npm run test:admin:live` against PostgreSQL | any check fails |
+| 7 | DAST | OWASP ZAP baseline against the compose deployment | a FAIL-level alert; warnings land in the uploaded report |
+
+`.github/dependabot.yml` opens weekly pull requests for npm, the Docker base
+image and the GitHub Actions used here.
+
+### Running the same scans locally
+
+```bash
+# secrets, whole history
+gitleaks git --redact
+
+# static analysis
+docker run --rm -v "$PWD":/repo semgrep/semgrep \
+  semgrep scan --config p/ci --error /repo/app /repo/frontend
+
+# infrastructure
+docker run --rm -v "$PWD/terraform:/tf" bridgecrew/checkov \
+  -d /tf --compact --hard-fail-on HIGH
+
+# container (npm/corepack inside the base image are build tooling, not runtime)
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest \
+  image --severity HIGH,CRITICAL --ignore-unfixed \
+  --skip-dirs /usr/local/lib/node_modules/npm devsecops_pipeline-app:latest
+
+# dependencies — from app/
+npm audit --audit-level=high
+```
+
 ---
 
 ## ADMIN SETUP

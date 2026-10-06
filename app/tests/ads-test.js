@@ -7,7 +7,7 @@
  * here may change that. Every test is written as "given this input, the service
  * must refuse to produce a usable ad identifier" or "this gate must be closed".
  *
- * Run with:  node ads-test.js
+ * Run with:  node tests/ads-test.js
  *
  * The database is only used for the two integration checks at the end, and they
  * restore whatever they changed, so the suite is safe to run against a database
@@ -18,8 +18,8 @@ const assert = require("assert");
 
 require("dotenv").config();
 
-const adsService = require("./ads-service");
-const pool = require("./db");
+const adsService = require("../ads-service");
+const pool = require("../db");
 
 (async () => {
 let passed = 0;

@@ -22,7 +22,7 @@ const assert = require("assert");
 const fs = require("fs");
 const path = require("path");
 
-const ROOT = path.join(__dirname, "..");
+const ROOT = path.join(__dirname, "..", "..");
 
 let passed = 0;
 let failed = 0;
@@ -280,7 +280,7 @@ check(
 // Rendered output is checked, not the source: the source comments legitimately
 // discuss what "ads are live" would mean, and a comment is not a claim a
 // reader ever sees.
-const adsViews = require("./admin-ads-views");
+const adsViews = require("../admin-ads-views");
 
 const RENDERED_CLAIM = /ads are live|is monetised|is monetized|earning from ads|ads are now running/i;
 

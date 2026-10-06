@@ -25,14 +25,14 @@ const assert = require("assert");
 const fs = require("fs");
 const path = require("path");
 
-const config = require("./config");
-const security = require("./security");
-const articleService = require("./article-service");
-const uploads = require("./article-uploads");
-const validation = require("./article-validation");
-const articleHtml = require("./article-html");
-const articleViews = require("./admin-article-views");
-const adminViews = require("./admin-views");
+const config = require("../config");
+const security = require("../security");
+const articleService = require("../article-service");
+const uploads = require("../article-uploads");
+const validation = require("../article-validation");
+const articleHtml = require("../article-html");
+const articleViews = require("../admin-article-views");
+const adminViews = require("../admin-views");
 
 let passed = 0;
 let failed = 0;
@@ -635,7 +635,7 @@ section("[3] Slug uniqueness");
   /* The browser-side editor is enhancement only, but two of its details have
    * to agree with the template: the counter is looked up by id, and no
    * author-supplied value is interpolated into an HTML string. */
-  const formScript = fs.readFileSync(path.join(__dirname, "..", "frontend", "assets", "admin", "admin-article-form.js"), "utf8");
+  const formScript = fs.readFileSync(path.join(__dirname, "..", "..", "frontend", "assets", "admin", "admin-article-form.js"), "utf8");
 
   check(
     "the character counter is matched by id, not by an empty attribute",
@@ -680,7 +680,7 @@ section("[3] Slug uniqueness");
     use: () => {}
   };
 
-  const articleRoutes = require("./admin-article-routes");
+  const articleRoutes = require("../admin-article-routes");
   articleRoutes.registerPages(fakePages);
   articleRoutes.registerApi(fakeApi);
 
@@ -761,7 +761,7 @@ section("[3] Slug uniqueness");
 
   section("[7] Public visibility of drafts");
 
-  const serverSource = fs.readFileSync(require.resolve("./server"), "utf8");
+  const serverSource = fs.readFileSync(require.resolve("../server"), "utf8");
 
   check(
     "the public article list filters on status",
@@ -794,7 +794,7 @@ section("[3] Slug uniqueness");
   check("public article creation still requires an admin session", /app\.post\("\/api\/articles", security\.requireAdminSession/.test(serverSource));
 
   const sitemapSource = require("fs").readFileSync(
-    require.resolve("../scripts/generate-sitemap"),
+    require.resolve("../../scripts/generate-sitemap"),
     "utf8"
   );
   check("the sitemap generator filters on published status", /WHERE status = 'published'/.test(sitemapSource));
@@ -804,7 +804,7 @@ section("[3] Slug uniqueness");
   /* Summary                                                             */
   /* ================================================================== */
 
-  const pool = require("./db");
+  const pool = require("../db");
   try {
     await pool.end();
   } catch {

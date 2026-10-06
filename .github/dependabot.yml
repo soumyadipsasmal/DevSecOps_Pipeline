@@ -1,0 +1,19 @@
+# Keeps the dependency and container bases current: one pull request per week
+# per ecosystem, so a fix lands as a reviewable diff instead of a surprise.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /app
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
