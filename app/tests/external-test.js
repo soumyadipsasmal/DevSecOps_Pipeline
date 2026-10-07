@@ -812,6 +812,16 @@ function createFixtureServer() {
 
   section("Public endpoints (fixtures, validation, limits)");
 
+  /* The FORCEFAIL probes below record real failures against the breakers,
+     which are persisted in integration_status. Left alone, the nominatim
+     breaker eventually opens (5 consecutive failures) and geocode then
+     answers 200 with an empty list instead of throwing, so this suite would
+     fail on every run after the first few. Start from a known-closed state. */
+  const circuit = require("../circuit-breaker");
+  for (const service of ["nominatim", "wikidata", "commons"]) {
+    await circuit.adminReset(service);
+  }
+
   const app = require("../server");
   const listener = app.listen(0, "127.0.0.1");
   await new Promise(resolve => listener.once("listening", resolve));

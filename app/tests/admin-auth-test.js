@@ -235,7 +235,11 @@ section("[3] CSRF protection");
   req.headers.cookie = "";
   check("no cookie rejected", security.verifyCsrfToken(req) === false);
 
-  req.headers.cookie = `${config.csrfCookieName}=${"n" + token.slice(1)}`;
+  // Mutate the first character to one that differs from it: replacing it
+  // with a fixed "n" would be a no-op whenever the token already starts with
+  // "n" (1 in 64 base64url tokens), which made this check fail at random.
+  const forgedFirst = token.slice(0, 1) === "n" ? "m" : "n";
+  req.headers.cookie = `${config.csrfCookieName}=${forgedFirst + token.slice(1)}`;
   check("forged signature rejected", security.verifyCsrfToken(req) === false);
 
   const headerReq = makeReq({
