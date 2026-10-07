@@ -18,13 +18,18 @@
  * Run with:  node tests/circuit-breaker-test.js
  */
 
+/* The ENABLE_* switches are read once, when config is first required, so the
+ * one case that needs a switch off has to set it before anything is loaded.
+ * Only ENABLE_WIKIDATA is touched and no other test here uses the "wikidata"
+ * service, so nothing else in this file sees a disabled service. */
+process.env.ENABLE_WIKIDATA = "false";
+
 const assert = require("assert");
 
 const circuit = require("../circuit-breaker");
 const { licenseAllowed } = require("../media-service");
 const licenseAudit = require("../license-audit");
 const { createRssService, createMemoryStore } = require("../rss-service");
-const config = require("../config");
 
 /* ==================================================================== */
 /* Test harness (same shape as the external suite)                      */
@@ -91,12 +96,18 @@ const FEED_XML = `<?xml version="1.0" encoding="UTF-8"?>
 /* Breaker lifecycle                                                     */
 /* ==================================================================== */
 
-(function breakerLifecycle() {
+async function breakerLifecycle() {
   section("Circuit breaker lifecycle");
 
-  test("a closed breaker allows and counts one request per gate call", async () => {
+  await testAsync("a closed breaker allows and counts one request per gate call", async () => {
     const clock = makeClock();
-    const breaker = circuit.createBreaker("cbt-closed", { persist: false, now: clock.now });
+    // A named service ("cbt-closed") has no entry in the budget table, so the
+    // breaker only counts calls when it is handed a budget explicitly.
+    const breaker = circuit.createBreaker("cbt-closed", {
+      persist: false,
+      now: clock.now,
+      budget: { hourly: 100, daily: 1000 }
+    });
     const first = await breaker.gate();
     assert.strictEqual(first.allow, true);
     const second = await breaker.gate();
@@ -104,7 +115,7 @@ const FEED_XML = `<?xml version="1.0" encoding="UTF-8"?>
     assert.strictEqual((await breaker.summary()).budget.hourly.used, 2);
   });
 
-  test("the configured number of consecutive failures opens the breaker", async () => {
+  await testAsync("the configured number of consecutive failures opens the breaker", async () => {
     const clock = makeClock();
     const breaker = circuit.createBreaker("cbt-consecutive", {
       persist: false,
@@ -124,7 +135,7 @@ const FEED_XML = `<?xml version="1.0" encoding="UTF-8"?>
     assert.strictEqual(gate.kind, "auto");
   });
 
-  test("a cooldown lets one probe through; its success closes the breaker", async () => {
+  await testAsync("a cooldown lets one probe through; its success closes the breaker", async () => {
     const clock = makeClock();
     const breaker = circuit.createBreaker("cbt-probe", {
       persist: false,
@@ -148,7 +159,7 @@ const FEED_XML = `<?xml version="1.0" encoding="UTF-8"?>
     assert.strictEqual(summary.label, "ON");
   });
 
-  test("a failing probe reopens; the cooldown doubles each open", async () => {
+  await testAsync("a failing probe reopens; the cooldown doubles each open", async () => {
     const clock = makeClock();
     const breaker = circuit.createBreaker("cbt-double", {
       persist: false,
@@ -168,23 +179,24 @@ const FEED_XML = `<?xml version="1.0" encoding="UTF-8"?>
     assert.ok(second.nextRetryAt - second.openedAt >= 120000, "cooldown must double after a failed probe");
   });
 
-  test("more than half of the last requests failing trips the rate rule", async () => {
+  await testAsync("more than half of the last requests failing trips the rate rule", async () => {
     const clock = makeClock();
     const breaker = circuit.createBreaker("cbt-rate", {
       persist: false,
       now: clock.now,
       thresholds: { minRequests: 10, windowMs: 60 * 60 * 1000, failureRate: 0.5, failureThreshold: 100 }
     });
-    // 10 requests, 6 failures, 4 wins — > 50 %.
+    // 10 requests, 4 wins and 6 failures — 60 %, over the 50 % rule.
     for (let i = 0; i < 10; i++) {
-      await breaker.recordResult({ ok: i >= 4, error: i >= 4 ? makeError("http", 502) : undefined });
+      const ok = i < 4;
+      await breaker.recordResult({ ok, error: ok ? undefined : makeError("http", 502) });
     }
     const summary = await breaker.summary();
     assert.strictEqual(summary.autoState, "open");
     assert.match(summary.reason, /% of the last/);
   });
 
-  test("a burst of timeouts opens early when they are all timeouts", async () => {
+  await testAsync("a burst of timeouts opens early when they are all timeouts", async () => {
     const clock = makeClock();
     const breaker = circuit.createBreaker("cbt-timeout", {
       persist: false,
@@ -196,7 +208,7 @@ const FEED_XML = `<?xml version="1.0" encoding="UTF-8"?>
     assert.match((await breaker.summary()).reason, /timeouts/);
   });
 
-  test("a 429 opens immediately and honours Retry-After", async () => {
+  await testAsync("a 429 opens immediately and honours Retry-After", async () => {
     const clock = makeClock();
     const breaker = circuit.createBreaker("cbt-429", {
       persist: false,
@@ -205,13 +217,15 @@ const FEED_XML = `<?xml version="1.0" encoding="UTF-8"?>
     });
     const error = makeError("http", 429);
     error.retryAfterSeconds = 300;
-    await breaker.recordResult({ ok: false, error });
+    // run() lifts the header off the error and passes it on the outcome, which
+    // is where recordResult reads it.
+    await breaker.recordResult({ ok: false, error, retryAfterSeconds: error.retryAfterSeconds });
     const summary = await breaker.summary();
     assert.strictEqual(summary.autoState, "open");
     assert.ok(summary.nextRetryAt - summary.openedAt >= 300 * 1000, "Retry-After must shape the cooldown");
   });
 
-  test("three 403 answers in 24h lock the breaker off", async () => {
+  await testAsync("three 403 answers in 24h lock the breaker off", async () => {
     const clock = makeClock();
     const breaker = circuit.createBreaker("cbt-403", {
       persist: false,
@@ -233,16 +247,16 @@ const FEED_XML = `<?xml version="1.0" encoding="UTF-8"?>
     assert.strictEqual(gate.allow, false);
     assert.strictEqual(gate.kind, "locked-403");
   });
-})();
+}
 
 /* ==================================================================== */
 /* Budgets, switches and manual control                                  */
 /* ==================================================================== */
 
-(function budgetsAndControls() {
+async function budgetsAndControls() {
   section("Request envelopes and admin control");
 
-  test("a spent hourly envelope refuses further calls until the window rolls", async () => {
+  await testAsync("a spent hourly envelope refuses further calls until the window rolls", async () => {
     const clock = makeClock();
     const breaker = circuit.createBreaker("cbt-budget", {
       persist: false,
@@ -262,26 +276,20 @@ const FEED_XML = `<?xml version="1.0" encoding="UTF-8"?>
     assert.strictEqual(again.allow, true);
   });
 
-  test("an ENABLE_ switch set false refuses calls whatever the breaker says", async () => {
-    const original = config.enableWikidata;
-    try {
-      config.enableWikidata = false;
-      const clock = makeClock();
-      const breaker = circuit.createBreaker("wikidata", { persist: false, now: clock.now });
-      const gate = await breaker.gate();
-      assert.strictEqual(gate.allow, false);
-      assert.strictEqual(gate.kind, "env-off");
-    } finally {
-      config.enableWikidata = original;
-    }
-
-    const clock = makeClock();
-    const breaker = circuit.createBreaker("wikidata", { persist: false, now: clock.now });
+  await testAsync("an ENABLE_ switch set false refuses calls whatever the breaker says", async () => {
+    // ENABLE_WIKIDATA is false for this whole file, so the switch wins over a
+    // breaker that is otherwise healthy and closed.
+    const breaker = circuit.createBreaker("wikidata", { persist: false, now: makeClock().now });
     const gate = await breaker.gate();
-    assert.strictEqual(gate.allow, true, "restoring the switch re-enables the service");
+    assert.strictEqual(gate.allow, false);
+    assert.strictEqual(gate.kind, "env-off");
+
+    // Control: a service whose switch is on must not be refused by that path.
+    const other = await circuit.createBreaker("commons", { persist: false, now: makeClock().now }).gate();
+    assert.strictEqual(other.allow, true, "a switch that is on must not refuse traffic");
   });
 
-  test("manual off freezes a service; an admin reset restores it", async () => {
+  await testAsync("manual off freezes a service; an admin reset restores it", async () => {
     const clock = makeClock();
     const breaker = circuit.createBreaker("cbt-manual", { persist: false, now: clock.now });
     await breaker.setManualOff("Blocked while the data supplier changes licences");
@@ -296,7 +304,7 @@ const FEED_XML = `<?xml version="1.0" encoding="UTF-8"?>
     assert.strictEqual((await breaker.gate()).allow, true);
   });
 
-  test("an admin reset also clears a 403 lock", async () => {
+  await testAsync("an admin reset also clears a 403 lock", async () => {
     const clock = makeClock();
     const breaker = circuit.createBreaker("cbt-lock-reset", {
       persist: false,
@@ -313,7 +321,7 @@ const FEED_XML = `<?xml version="1.0" encoding="UTF-8"?>
     assert.strictEqual((await breaker.gate()).allow, true);
   });
 
-  test("circuit.run throws a BreakerOpenError when the breaker refuses", async () => {
+  await testAsync("circuit.run throws a BreakerOpenError when the breaker refuses", async () => {
     const clock = makeClock();
     const breaker = circuit.getBreaker("cbt-run-refused", { persist: false, now: clock.now });
     await breaker.setManualOff("under test");
@@ -330,7 +338,7 @@ const FEED_XML = `<?xml version="1.0" encoding="UTF-8"?>
     await breaker.reset();
   });
 
-  test("circuit.run records successes and failures on the breaker", async () => {
+  await testAsync("circuit.run records successes and failures on the breaker", async () => {
     const clock = makeClock();
     circuit.getBreaker("cbt-run-ok", { persist: false, now: clock.now });
     const value = await circuit.run("cbt-run-ok", async () => ({ ok: true }));
@@ -353,13 +361,13 @@ const FEED_XML = `<?xml version="1.0" encoding="UTF-8"?>
     assert.strictEqual(circuit.feedBreakerKey("Mongabay News!"), "rss:mongabay-news");
     assert.strictEqual(circuit.feedBreakerKey(""), "rss:feed");
   });
-})();
+}
 
 /* ==================================================================== */
 /* Licence allowlist and re-audit                                        */
 /* ==================================================================== */
 
-(function licenceSafety() {
+async function licenceSafety() {
   section("Commons licence allowlist and re-audit");
 
   test("the allowlist accepts PD / CC0 / CC BY / CC BY-SA", () => {
@@ -399,7 +407,7 @@ const FEED_XML = `<?xml version="1.0" encoding="UTF-8"?>
     assert.strictEqual(licenseAudit.commonsToken({ file_path: "x", source: "", title: "caption only" }), null);
   });
 
-  test("a licence that drops off the allowlist marks the row hidden; recovery restores it", async () => {
+  await testAsync("a licence that drops off the allowlist marks the row hidden; recovery restores it", async () => {
     const rows = [
       { id: 1, title: "A", source: "https://commons.wikimedia.org/w/index.php?curid=1001" },
       { id: 2, title: "B", source: "https://commons.wikimedia.org/w/index.php?curid=1002" },
@@ -425,16 +433,16 @@ const FEED_XML = `<?xml version="1.0" encoding="UTF-8"?>
     const towardRestore = await licenseAudit.decideRows([hiddenRow], async () => ({ "p:1004": "CC0 1.0" }));
     assert.strictEqual(towardRestore[0].action, "restore");
   });
-})();
+}
 
 /* ==================================================================== */
 /* RSS quiet states                                                      */
 /* ==================================================================== */
 
-(function rssSafety() {
+async function rssSafety() {
   section("RSS quiet states (disabled, duty-cycle, redirects)");
 
-  test("breakered-off feeds silently stop publishing without a degraded flag", async () => {
+  await testAsync("breakered-off feeds silently stop publishing without a degraded flag", async () => {
     const clock = makeClock();
     const breaker = circuit.createBreaker("cbt-rss-off", { persist: false, now: clock.now });
     await breaker.setManualOff("feeding test");
@@ -455,7 +463,7 @@ const FEED_XML = `<?xml version="1.0" encoding="UTF-8"?>
     assert.strictEqual(latest.degraded, false);
   });
 
-  test("a feed that redirects to another domain is stopped before any headline is written", async () => {
+  await testAsync("a feed that redirects to another domain is stopped before any headline is written", async () => {
     const breaker = circuit.createBreaker("cbt-rss-redirect", { persist: false });
     const service = createRssService({
       feeds: [
@@ -472,7 +480,7 @@ const FEED_XML = `<?xml version="1.0" encoding="UTF-8"?>
     assert.strictEqual((await breaker.summary()).autoState, "open");
   });
 
-  test("a duty cycle spaces fetches; repeats are skipped, not refetched", async () => {
+  await testAsync("a duty cycle spaces fetches; repeats are skipped, not refetched", async () => {
     let calls = 0;
     const service = createRssService({
       feeds: [
@@ -506,13 +514,13 @@ const FEED_XML = `<?xml version="1.0" encoding="UTF-8"?>
     });
     assert.deepStrictEqual(service.approved.map(feed => feed.source), ["No flag"]);
   });
-})();
+}
 
 /* ==================================================================== */
 /* Static guardrails                                                     */
 /* ==================================================================== */
 
-(function guardrails() {
+async function guardrails() {
   section("Repository guardrails");
 
   test("the integrations admin page is registered on both routers", () => {
@@ -576,20 +584,30 @@ const FEED_XML = `<?xml version="1.0" encoding="UTF-8"?>
     assert.ok(openData.includes("locationIndexMarkup"), "the text index renderer must exist");
     assert.ok(openData.includes("tileerror"), "tile failures must trigger the fallback");
   });
-})();
-
-/* ==================================================================== */
-/* Report                                                               */
-/* ==================================================================== */
-
-console.log(`\n${passed}/${passed + failed} passed`);
-
-if (failed) {
-  console.log("\nFailures:");
-  for (const failure of failures) {
-    console.log(`\n  ${failure.name}`);
-    console.log(`    ${failure.error.stack}`);
-  }
 }
 
-process.exit(failed ? 1 : 0);
+/* ==================================================================== */
+/* Run + report                                                          */
+/* ==================================================================== */
+
+/* The sections are async now, so they are awaited one at a time: every test
+ * finishes before the next one starts, and the report cannot run early. */
+(async () => {
+  await breakerLifecycle();
+  await budgetsAndControls();
+  await licenceSafety();
+  await rssSafety();
+  await guardrails();
+
+  console.log(`\n${passed}/${passed + failed} passed`);
+
+  if (failed) {
+    console.log("\nFailures:");
+    for (const failure of failures) {
+      console.log(`\n  ${failure.name}`);
+      console.log(`    ${failure.error.stack}`);
+    }
+  }
+
+  process.exit(failed ? 1 : 0);
+})();

@@ -388,7 +388,7 @@ test("an unticked checkbox is read as off, not as absent", () => {
 
 section("Placement vocabulary");
 
-test("every placement the layout asks for is a known key", async () => {
+await testAsync("every placement the layout asks for is a known key", async () => {
   // These are the keys pages.js interpolates. A typo here would silently drop a
   // slot, so the list is asserted rather than trusted.
   const expected = [
@@ -414,17 +414,17 @@ test("every placement the layout asks for is a known key", async () => {
   assert.deepStrictEqual(missing, [], `missing placements: ${missing.join(", ")}`);
 });
 
-test("the migration leaves every placement switched off", async () => {
+await testAsync("the migration leaves every placement switched off", async () => {
   const { rows } = await pool.query("SELECT count(*)::int AS total FROM ad_placements WHERE is_enabled = true");
   assert.strictEqual(rows[0].total, 0, "no placement should be enabled on a default installation");
 });
 
-test("the migration leaves every ad type as none", async () => {
+await testAsync("the migration leaves every ad type as none", async () => {
   const { rows } = await pool.query("SELECT count(*)::int AS total FROM ad_placements WHERE ad_type <> 'none'");
   assert.strictEqual(rows[0].total, 0, "no placement should have an ad type on a default installation");
 });
 
-test("the migration stores no slot or publisher id", async () => {
+await testAsync("the migration stores no slot or publisher id", async () => {
   const { rows } = await pool.query(
     `SELECT count(*)::int AS total FROM ad_placements
       WHERE ad_slot <> '' OR publisher_id <> ''`
@@ -433,7 +433,7 @@ test("the migration stores no slot or publisher id", async () => {
   assert.strictEqual(rows[0].total, 0, "a default installation must not contain a placeholder ad id");
 });
 
-test("the settings row is off and has no publisher id", async () => {
+await testAsync("the settings row is off and has no publisher id", async () => {
   const settings = await adsService.getSettings();
 
   assert.strictEqual(settings.ads_enabled, false);
@@ -441,7 +441,7 @@ test("the settings row is off and has no publisher id", async () => {
   assert.strictEqual(settings.adsense_client, "");
 });
 
-test("consent is required by default", async () => {
+await testAsync("consent is required by default", async () => {
   const settings = await adsService.getSettings();
   assert.strictEqual(settings.consent_required, true);
 });

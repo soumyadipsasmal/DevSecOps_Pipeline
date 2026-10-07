@@ -583,7 +583,7 @@ function createFixtureServer() {
     assert.strictEqual(population.values[0], "118805");
   });
 
-  test("referenced entity ids are resolved to labels before answering", async () => {
+  await testAsync("referenced entity ids are resolved to labels before answering", async () => {
     const entity = await wikidata.getEntity("Q169997");
     assert.strictEqual(entity.label, "Darjeeling");
     const instanceOf = entity.facts.find(fact => fact.property === "P31");
@@ -591,7 +591,7 @@ function createFixtureServer() {
     assert.strictEqual(entity.source.license, "CC0 1.0");
   });
 
-  test("a missing entity answers 404, a malformed id answers 400", async () => {
+  await testAsync("a missing entity answers 404, a malformed id answers 400", async () => {
     await assert.rejects(() => wikidata.getEntity("Q999999999"), error => error.status === 404);
     await assert.rejects(() => wikidata.getEntity("not-a-qid"), error => error.status === 400);
     await assert.rejects(() => wikidata.getEntity("Q0"), error => error.status === 400);
@@ -737,7 +737,7 @@ function createFixtureServer() {
     assert.throws(() => httpx.assertSafeUrl("/relative/only"), error => error.kind === "bad-response");
   });
 
-  test("every request identifies the application and its operator", async () => {
+  await testAsync("every request identifies the application and its operator", async () => {
     const config = require("../config");
     assert.match(config.wikimediaUserAgent, /^Kalinova\//);
     assert.ok(config.wikimediaUserAgent.includes("kalinova.in"));

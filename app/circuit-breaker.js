@@ -46,6 +46,8 @@ const DAY_MS = 24 * HOUR_MS;
 class BreakerOpenError extends ExternalServiceError {
   constructor(service, reason) {
     super("breaker", `breaker ${service} is refusing outbound requests: ${reason}`);
+    // A refusal is "service unavailable" to whoever asked for the work.
+    this.status = 503;
     this.breakerService = service;
     this.breakerReason = reason;
   }
@@ -394,6 +396,16 @@ function createBreaker(service, options = {}) {
         reason: state.manual_reason || "Disabled by an administrator"
       };
     }
+    // The 403 lock is its own auto_state, not "open", so it has to be refused
+    // here. Left to the branch below it fell through to "closed" and the very
+    // upstream that answered 403 three times kept being called.
+    if (state.auto_state === "locked-403") {
+      return {
+        allow: false,
+        kind: "locked-403",
+        reason: state.reason || "Repeatedly answered 403; requires administrator review"
+      };
+    }
 
     const t = now();
 
@@ -592,6 +604,8 @@ function createBreaker(service, options = {}) {
       lastFailureAt: state.last_failure_at,
       forbidden24h: state.forbidden_24h,
       forbiddenDailyMax: thresholds.forbiddenDailyMax,
+      windowRequests: state.window_requests,
+      windowFailures: state.window_failures,
       budget: budgetInfo
     };
   }
