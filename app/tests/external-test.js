@@ -732,7 +732,8 @@ function createFixtureServer() {
 
   test("unsafe URLs never reach the wire", () => {
     assert.throws(() => httpx.assertSafeUrl("ftp://example.com/x"), error => error.kind === "bad-response");
-    assert.throws(() => httpx.assertSafeUrl("https://user:pass@example.com/x"), error => error.kind === "bad-response");
+    // Placeholder credentials in a fixture asserting such URLs are rejected.
+    assert.throws(() => httpx.assertSafeUrl("https://user:pass@example.com/x"), error => error.kind === "bad-response"); // trufflehog:ignore
     assert.throws(() => httpx.assertSafeUrl("/relative/only"), error => error.kind === "bad-response");
   });
 

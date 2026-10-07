@@ -48,7 +48,9 @@ jobs:
         uses: trufflesecurity/trufflehog@main
         with:
           head: ${{ github.sha }}
-          extra_args: --debug
+          # -x skips app/tests/, whose hostile fixtures trip the URI detector.
+          # gitleaks above still scans them over the full history.
+          extra_args: --debug --exclude-paths security/trufflehog-exclude.txt
 
   sast:
     name: "2 SAST: Semgrep"

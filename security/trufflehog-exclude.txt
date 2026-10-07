@@ -1,0 +1,18 @@
+# Paths TruffleHog skips during the git-history scan (gate 1).
+#
+# Pattern format: newline-separated regular expressions, matched against the
+# file path as git reports it. Lines starting with # are comments.
+#
+# Why app/tests/ is excluded from TruffleHog
+# ------------------------------------------
+# Test suites are full of deliberately hostile strings: forged session cookies,
+# unreachable connection URIs, exploded upstream fixtures. TruffleHog's URI
+# detector reads app/tests/external-test.js:735 as a leaked credential because
+# that line hands assertSafeUrl a URL with embedded userinfo -- and the very
+# next assertion proves the application rejects it. Scanning fixtures only ever
+# produces findings of that shape.
+#
+# Nothing is lost by skipping them here: the gitleaks step runs over the FULL
+# history with the same scanner used by the pre-commit hook, and it does scan
+# app/tests/. A real secret committed to a test file still fails the build.
+^app/tests/
