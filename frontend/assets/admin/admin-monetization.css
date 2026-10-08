@@ -1,0 +1,67 @@
+/* ==================================================================== */
+/* Monetization dashboard                                                */
+/* ==================================================================== */
+
+/* Secondary tabs (Overview / Affiliate / … / AdSense) */
+.monet-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 0 0 1.1rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.monet-tab {
+    padding: 0.55rem 0.9rem;
+    border: 1px solid transparent;
+    border-bottom: none;
+    border-radius: 8px 8px 0 0;
+    color: var(--ink-muted);
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-decoration: none;
+    margin-bottom: -1px;
+}
+
+.monet-tab:hover {
+    color: var(--ink);
+    background: var(--paper-raised);
+}
+
+.monet-tab--active {
+    color: var(--accent);
+    background: var(--paper);
+    border-color: var(--border);
+}
+
+/* "AdSense" is the last tab but lives on the Ads screen; keep it flush. */
+.monet-tab--flush {
+    margin-left: auto;
+}
+
+/* Manage surface links on the overview screen */
+.monet-links {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 0.5rem;
+}
+
+.monet-links li {
+    padding: 0.55rem 0.8rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--paper);
+    color: var(--ink-muted);
+}
+
+.monet-links a {
+    color: var(--accent);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.monet-links a:hover {
+    text-decoration: underline;
+}

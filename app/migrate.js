@@ -11,6 +11,22 @@
  *   database/schema-ad-placements.sql ad_settings / ad_placements (seeded off)
  *   database/schema-external-data.sql external_data_cache (upstream lookups)
  *                                    + rss_items (headline strip)
+ *   database/schema-research-sources.sql article_sources + article_research_
+ *                                    metadata (editorial citations and the
+ *                                    reference excerpts the copy-similarity
+ *                                    warning compares against)
+ *   database/schema-monetization.sql monetization dashboard storage: affiliate
+ *                                    links + anonymised click log, sponsored
+ *                                    campaigns, direct banner ads + events,
+ *                                    newsletter subscribers, disclosure texts,
+ *                                    audit log, plus additive columns on
+ *                                    articles and categories. Everything starts
+ *                                    empty or disabled — KaliNova is not
+ *                                    monetised.
+ *   database/schema-seo-engine.sql   redirects table for slug-change / retired
+ *                                    URLs. One additive table; the SEO engine
+ *                                    itself computes its report on demand and
+ *                                    stores nothing.
  *
  * The project has no migration framework; the same files are mounted into
  * docker-entrypoint-initdb.d for a fresh volume, and every statement in them is
@@ -47,7 +63,25 @@ const MIGRATIONS = [
   // breaker/service) and integration_events (the stop + override log). Runs
   // after the external-data migration so the housekeeping sweep can also
   // purge expired cache rows. Additive: two new tables, guarded.
-  { file: "schema-integration-safety.sql", check: { table: "integration_status", columns: ["service", "module", "is_enabled", "manual_off", "auto_state", "reason", "last_error"] } }
+  { file: "schema-integration-safety.sql", check: { table: "integration_status", columns: ["service", "module", "is_enabled", "manual_off", "auto_state", "reason", "last_error"] } },
+  // Editorial sources and research provenance (Phase 3): two brand-new tables
+  // hanging off articles — the citations a reader can follow, and the reference
+  // excerpts an editor consulted while drafting. Additive, guarded, and last so
+  // the ordering the test suite asserts for the earlier files is unchanged.
+  { file: "schema-research-sources.sql", check: { table: "article_sources", columns: ["article_id", "source_name", "source_url", "license", "attribution_text", "position"] } },
+  // Monetization dashboard (Phase 4): purely additive storage — the new tables
+  // (affiliate_links, direct_ads, sponsored_campaigns, newsletter_subscribers,
+  // disclosures, audit log) all start empty, and the only existing-table change
+  // is two additive columns (articles.ads_enabled, categories.default_*). Last,
+  // so none of the ordering the earlier files assert on is disturbed.
+  { file: "schema-monetization.sql", check: { table: "affiliate_links", columns: ["slug", "destination_url", "status", "article_id", "category_id"] } },
+  // SEO Engine (Phase 5): one new table — redirects — holding the 301 sources
+  // written automatically when an editor renames a published slug, plus the
+  // hand-managed redirects on /admin/redirects. The engine itself is a
+  // deterministic analyzer that computes its report on demand and persists
+  // nothing (see docs/seo-engine.md). Registered after the monetization file
+  // so the ordering the earlier suites assert on stays untouched.
+  { file: "schema-seo-engine.sql", check: { table: "redirects", columns: ["source_path", "destination_path", "status_code", "is_active"] } }
 ];
 
 async function applyMigration(migration) {

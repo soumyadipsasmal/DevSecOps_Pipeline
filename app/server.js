@@ -9,6 +9,7 @@ const adsService = require("./ads-service");
 const security = require("./security");
 const { adminApi, adminPages } = require("./admin-routes");
 const { externalApi } = require("./external-routes");
+const redirects = require("./redirect-service");
 
 const app = express();
 const PORT = process.env.PORT || config.port;
@@ -61,6 +62,54 @@ app.use("/api/admin", adminApi);
 // and registered before the SPA fallback so /api/* never falls through to the
 // HTML shell.
 app.use("/api", externalApi);
+
+// Monetization API (disclosures, direct-ads, newsletter, article monetization)
+// and the affiliate redirect surface. Mounted before the SPA fallback so /go/*
+// and /api/monetization* never fall through to the HTML shell.
+const { goRouter, monetizationApi } = require("./monetization-routes");
+app.use("/api", monetizationApi);
+app.use("/go", goRouter);
+
+// ===============================
+// SLUG-CHANGE REDIRECTS
+// ===============================
+// The redirects table (database/schema-seo-engine.sql) answers every clean GET
+// against a retired URL. Sources are strictly public site paths, so /admin,
+// /api, /assets, /go and /health never reach this middleware; a paused row
+// simply falls through to its normal route. A redirect is a terminal answer:
+// no store caching, because the table can be silenced at any time.
+//
+// This runs after the real routes — nothing forwards over a living endpoint —
+// and before the home page and the SPA fallback, so an old /blog slug is
+// forwarded before it can be served as an empty shell. Database trouble here
+// must not take the site down, so any error falls through unanswered.
+app.use(async (req, res, next) => {
+  if (req.method !== "GET" && req.method !== "HEAD") return next();
+
+  const path = req.path;
+  if (
+    path === "/" ||
+    path.startsWith("/api/") ||
+    path.startsWith("/admin") ||
+    path.startsWith("/assets/") ||
+    path.startsWith("/go/") ||
+    path === "/health"
+  ) {
+    return next();
+  }
+
+  try {
+    const target = await redirects.findBySource(path);
+    if (!target) return next();
+
+    res.set("Cache-Control", "no-store");
+    res.set("X-Robots-Tag", "noindex, follow");
+    return res.redirect(target.status_code, target.destination_path);
+  } catch (error) {
+    // A redirect lookup failing must not take the public site down.
+    return next();
+  }
+});
 
 // Home page
 app.get("/", (req, res) => {
@@ -359,6 +408,63 @@ app.get("/api/articles/:id/images", async (req, res) => {
         res.json({ images: result.rows });
     } catch (error) {
         console.error("Get article images error:", error);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+// ===============================
+// GET ARTICLE SOURCES
+// ===============================
+// The citations an editor attached, published with the article. Joined to
+// articles so a draft's reference list can never be read, exactly like the
+// gallery above. Provenance rows (article_research_metadata) are internal and
+// are never served from here.
+
+async function loadArticleSources(column, keyValue) {
+    // The column name is never taken from the request: each caller names one
+    // of these two literal keys, so nothing can be interpolated from input.
+    const SOURCE_KEY_COLUMNS = { id: "articles.id", slug: "articles.slug" };
+    const qualified = SOURCE_KEY_COLUMNS[column];
+    if (!qualified) return [];
+
+    const result = await pool.query(`
+        SELECT
+            article_sources.id,
+            article_sources.source_name,
+            article_sources.source_url,
+            article_sources.license,
+            article_sources.attribution_text
+        FROM article_sources
+        JOIN articles ON articles.id = article_sources.article_id
+        WHERE ${qualified} = $1
+          AND articles.status = 'published'
+        ORDER BY article_sources.position ASC, article_sources.id ASC
+    `, [keyValue]);
+
+    return result.rows;
+}
+
+app.get("/api/articles/:id/sources", async (req, res) => {
+    try {
+        // A non-numeric id is a 404 rather than a database error.
+        if (!/^\d+$/.test(String(req.params.id))) {
+            return res.status(404).json(ARTICLE_NOT_FOUND);
+        }
+
+        const rows = await loadArticleSources("id", req.params.id);
+        res.json({ sources: rows });
+    } catch (error) {
+        console.error("Get article sources error:", error);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+app.get("/api/articles/slug/:slug/sources", async (req, res) => {
+    try {
+        const rows = await loadArticleSources("slug", req.params.slug);
+        res.json({ sources: rows });
+    } catch (error) {
+        console.error("Get article sources error:", error);
         res.status(500).json({ error: "Internal server error" });
     }
 });

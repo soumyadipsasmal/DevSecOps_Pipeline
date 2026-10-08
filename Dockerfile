@@ -52,6 +52,32 @@ COPY app/license-audit.js .
 COPY app/admin-integrations-routes.js .
 COPY app/admin-integrations-views.js .
 
+# Editorial research workflow (sources, provenance, copy-similarity warning).
+# Same rule as every module above: listed explicitly, so a forgotten file fails
+# the build rather than missing from the image at run time.
+COPY app/content-similarity.js .
+COPY app/article-sources.js .
+COPY app/admin-research-routes.js .
+
+# Monetization dashboard (affiliate links, sponsored campaigns, direct ads,
+# newsletter, disclosures, audit). Same rule as every module above.
+COPY app/monetization-service.js .
+COPY app/affiliate-service.js .
+COPY app/sponsored-service.js .
+COPY app/direct-ads-service.js .
+COPY app/monetization-routes.js .
+COPY app/admin-monetization-routes.js .
+COPY app/admin-monetization-views.js .
+
+# SEO engine and slug-change redirects. The analyzer is pure JavaScript, the
+# redirect service owns the redirects table, and the two admin surfaces expose
+# both. Listed explicitly, same rule as every module above.
+COPY app/seo-engine.js .
+COPY app/redirect-service.js .
+COPY app/admin-seo-routes.js .
+COPY app/admin-redirect-routes.js .
+COPY app/admin-redirect-views.js .
+
 COPY database /database
 
 COPY scripts/topic-images.tsv /seed-data/topic-images.tsv

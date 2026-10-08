@@ -25,6 +25,32 @@ const STATUS_DRAFT = "draft";
 const STATUS_PUBLISHED = "published";
 const STATUSES = [STATUS_DRAFT, STATUS_PUBLISHED];
 
+/*
+ * Advertising opt-out for one article. The site-wide AdSense unit is public
+ * layout unless an article opts out; the three choices are "follow the
+ * category default", "show ads" and "no ads". NULL (the default) defers to the
+ * category's default flag.
+ */
+const ADS_ENABLED_CHOICE_DEFAULT = "default";
+const ADS_ENABLED_CHOICE_YES = "1";
+const ADS_ENABLED_CHOICE_NO = "0";
+const ADS_ENABLED_CHOICES = [
+  ADS_ENABLED_CHOICE_DEFAULT,
+  ADS_ENABLED_CHOICE_YES,
+  ADS_ENABLED_CHOICE_NO
+];
+
+/** @returns {{ ok: boolean, choice?: string, enabled?: boolean|null, error?: string }} */
+function validateAdsEnabled(value) {
+  const raw = value === null || value === undefined ? ADS_ENABLED_CHOICE_DEFAULT : String(value).trim();
+  if (!ADS_ENABLED_CHOICES.includes(raw)) {
+    return { ok: false, error: "Ads choice must be default, 1 or 0." };
+  }
+  if (raw === ADS_ENABLED_CHOICE_YES) return { ok: true, choice: raw, enabled: true };
+  if (raw === ADS_ENABLED_CHOICE_NO) return { ok: true, choice: raw, enabled: false };
+  return { ok: true, choice: raw, enabled: null };
+}
+
 /* A row that arrived with some other status — nothing in the seed data does, but
  * the column allows it — is still displayed and editable. The CMS only ever
  * writes draft or published, which is what articles_status_check (added by
@@ -196,6 +222,10 @@ function validateArticle(input, options = {}) {
   const status = statusField;
   if (!status.ok) errors.status = status.error;
 
+  /* ---- advertising opt-out -------------------------------------------- */
+  const ads = validateAdsEnabled(body.ads_enabled ?? body.adsEnabled);
+  if (!ads.ok) errors.ads_enabled = ads.error;
+
   const failed = Object.keys(errors).length > 0;
   if (failed) return { ok: false, errors };
 
@@ -210,7 +240,9 @@ function validateArticle(input, options = {}) {
       bodyFormat: /<[a-z][^>]*>/i.test(bodyHtml) ? "html" : "text",
       coverImage: cover.coverImage,
       bannerAlt: cover.coverImage ? rawAlt : null,
-      status: status.status || STATUS_DRAFT
+      status: status.status || STATUS_DRAFT,
+      adsEnabled: ads.enabled,
+      adsEnabledChoice: ads.choice
     }
   };
 }
@@ -246,6 +278,7 @@ async function ensureUniqueSlug(candidate, isTaken, excludeId = null) {
 }
 
 module.exports = {
+  ADS_ENABLED_CHOICES,
   BANNER_ALT_MAX,
   BODY_MIN_PUBLISHED,
   META_DESCRIPTION_MAX,
@@ -261,6 +294,7 @@ module.exports = {
   ensureUniqueSlug,
   normalizeSlug,
   slugify,
+  validateAdsEnabled,
   validateArticle,
   validateCoverImage,
   validateStatus

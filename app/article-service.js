@@ -14,6 +14,7 @@
  */
 
 const pool = require("./db");
+const redirects = require("./redirect-service");
 
 const {
   STATUSES,
@@ -38,6 +39,7 @@ const ADMIN_COLUMNS = `
     articles.is_featured,
     articles.is_trending,
     articles.status,
+    articles.ads_enabled,
     articles.published_at,
     articles.created_at,
     articles.updated_at,
@@ -235,8 +237,8 @@ async function createArticle(values) {
   const { rows } = await pool.query(
     `INSERT INTO articles
        (author_id, title, slug, meta_description, content, body_format, cover_image,
-        banner_alt, category_id, status, published_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::text, CASE WHEN $10::text = 'published' THEN NOW() ELSE NULL END)
+        banner_alt, category_id, status, ads_enabled, published_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::text, $11, CASE WHEN $10::text = 'published' THEN NOW() ELSE NULL END)
      RETURNING id`,
     [
       authorId,
@@ -248,7 +250,8 @@ async function createArticle(values) {
       values.coverImage,
       values.bannerAlt,
       values.categoryId,
-      values.status
+      values.status,
+      values.adsEnabled === undefined ? null : values.adsEnabled
     ]
   );
 
@@ -264,6 +267,11 @@ async function updateArticle(id, values) {
   const parsed = Number.parseInt(String(id), 10);
   if (!Number.isInteger(parsed) || parsed <= 0) return null;
 
+  // The editor may change the slug; a published article exposed at a URL that
+  // just changed owes its old URL a 301, so read the pre-update row first.
+  const before = await getArticleForAdmin(parsed);
+  if (!before) return null;
+
   const slug = await resolveSlug(values.slug, parsed);
 
   const { rows } = await pool.query(
@@ -277,6 +285,7 @@ async function updateArticle(id, values) {
             banner_alt = $8,
             category_id = $9,
             status = $10::text,
+            ads_enabled = $11,
             published_at = CASE
               WHEN $10::text = 'published' THEN COALESCE(published_at, NOW())
               ELSE published_at
@@ -293,11 +302,20 @@ async function updateArticle(id, values) {
       values.coverImage,
       values.bannerAlt,
       values.categoryId,
-      values.status
+      values.status,
+      values.adsEnabled === undefined ? null : values.adsEnabled
     ]
   );
 
   if (rows.length === 0) return null;
+
+  // A slug rename on a published article retires a URL that may live in
+  // bookmarks, backlinks and the old feeds. Write the 301 before answering, so
+  // the editor never sees a saved state that would 404 the old address.
+  if (before.status === "published" && String(before.slug) !== String(slug)) {
+    await redirects.recordSlugChange({ articleId: parsed, oldSlug: before.slug, newSlug: slug });
+  }
+
   return getArticleForAdmin(parsed);
 }
 

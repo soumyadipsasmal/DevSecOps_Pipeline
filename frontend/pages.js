@@ -20,6 +20,18 @@
     ready: () => Promise.resolve({ enabled: false, ads: [] })
   };
 
+  // The direct-ad/sponsored/affiliate component is optional at runtime in the
+  // same way: until the monetization manifest has loaded, every call below
+  // returns empty markup, so no template renders an unmonetised placeholder.
+  const Monetization = window.KaliNovaMonetization || {
+    placeholder: () => "",
+    article: () => Promise.resolve(null),
+    hydrate: () => {},
+    hydrateAll: () => {},
+    onRoute: () => {},
+    renderArticleExtras: () => {}
+  };
+
   const DEFAULT_AVATAR = "/assets/article-meta.png";
   // Articles may be published without a cover image. When that happens the
   // media block is dropped entirely rather than filled with a placeholder.
@@ -135,19 +147,28 @@
   }
 
   /**
-   * The article body, with an optional in-content ad between two blocks.
+   * The article body, with optional in-content ads/groups between blocks.
    *
-   * The ad is inserted between top-level blocks of the already-rendered body,
-   * never inside one: the DOM is built first and the slot is then moved in after
-   * the chosen element. Nothing is split, so a paragraph cannot be cut in half by
-   * a percentage calculation.
+   * Accepts one in-content slot object ({position, markup}) or an array of them,
+   * so the Google slot and a direct-ad campaign can share a body without the
+   * renderer caring which is which.
    *
-   * Returns the plain body unchanged when there is no ad to place, which is the
-   * normal case on a site that is not monetised.
+   * Each slot is inserted between top-level blocks of the already-rendered
+   * body, never inside one: the DOM is built first and the slot is then moved in
+   * after the chosen element. Nothing is split, so a paragraph cannot be cut in
+   * half by a percentage calculation.
+   *
+   * Returns the plain body unchanged when there is nothing to place, which is
+   * the normal case on a site that is not monetised.
    */
   function renderArticleContent(content, bodyFormat, inContentMarkup) {
     const html = renderBody(content, bodyFormat);
-    if (!html || !inContentMarkup) return html;
+    const slides = Array.isArray(inContentMarkup)
+      ? inContentMarkup
+      : inContentMarkup
+        ? [inContentMarkup]
+        : [];
+    if (!html || !slides.length) return html;
 
     const holder = document.createElement("div");
     holder.innerHTML = html;
@@ -156,19 +177,32 @@
     const blocks = Array.from(holder.children);
     if (blocks.length < 3) return html;
 
-    const position = Number(inContentMarkup.position);
-    if (!Number.isInteger(position)) return html;
+    const resolved = [];
+    slides.forEach(slide => {
+      if (!slide || typeof slide !== "object") return;
 
-    let target = Math.round((blocks.length * position) / 100);
-    if (target < 1) target = 1;
-    if (target > blocks.length - 1) target = blocks.length - 1;
+      const position = Number(slide.position);
+      if (!Number.isInteger(position)) return;
 
-    const slot = document.createElement("div");
-    slot.className = "ad-slot-incontent";
-    slot.innerHTML = inContentMarkup.markup;
-    if (!slot.firstElementChild) return html;
+      const slot = document.createElement("div");
+      slot.className = "ad-slot-incontent";
+      slot.innerHTML = slide.markup;
+      if (!slot.firstElementChild) return;
 
-    blocks[target].after(slot.firstElementChild);
+      let target = Math.round((blocks.length * position) / 100);
+      if (target < 1) target = 1;
+      if (target > blocks.length - 1) target = blocks.length - 1;
+      resolved.push({ target, element: slot.firstElementChild });
+    });
+
+    // Insert from the end towards the start, so an earlier slot stays next to
+    // the paragraph run it was aimed at rather than drifting when a later one
+    // (which could follow it) pushes the blocks along.
+    resolved.sort((a, b) => b.target - a.target);
+    resolved.forEach(({ target, element }) => {
+      if (blocks[target]) blocks[target].after(element);
+    });
+
     return holder.innerHTML;
   }
 
@@ -329,6 +363,7 @@
       renderApp(`
         <div class="layout">
           <div class="feed">
+            ${Monetization.placeholder("homepage_top")}
             ${featured.length ? `
             <section class="feed-section">
               <h2 class="feed-heading">Featured stories</h2>
@@ -361,6 +396,8 @@
               </div>
             </section>
 
+            ${Monetization.placeholder("homepage_middle")}
+
             <section class="feed-section">
               <h2 class="feed-heading">Latest stories</h2>
               <div class="article-list">
@@ -374,6 +411,7 @@
 
           <aside class="sidebar">
             ${AdSlot.placeholder("sidebar-top")}
+            ${Monetization.placeholder("sidebar")}
             <section class="side-card">
               <h2 class="side-heading">Trending on KaliNova</h2>
               <ol class="trending-list">
@@ -403,6 +441,8 @@
       // Pushes any ad placeholders in the freshly rendered page. A no-op while
       // the site is unmonetised, because there is nothing in the DOM to fill.
       AdSlot.hydrate($("#app"));
+      // Same for the monetization surfaces (direct ads, newsletter wiring).
+      Monetization.hydrate($("#app"));
     } catch (e) {
       console.error(e);
       showError("Failed to load stories.");
@@ -593,6 +633,43 @@
 
   let galleryLightboxState = null;
 
+  /**
+   * "Sources & references" for a published story.
+   *
+   * Only http(s) links are made clickable — the server validates them on the
+   * way in, and this is the last check before one reaches the DOM. A licence
+   * or an attribution line that was never set stays absent rather than being
+   * filled in with a guess.
+   */
+  function renderSources(sources) {
+    if (!sources || !sources.length) return "";
+
+    const items = sources.map(source => {
+      const url = typeof source.source_url === "string" && /^https?:\/\//i.test(source.source_url)
+        ? source.source_url
+        : "";
+
+      const label = escapeHtml(source.source_name || "Untitled source");
+      const link = url
+        ? `<a class="article-source-link" href="${escapeHtml(url)}" rel="noopener noreferrer nofollow" target="_blank">${label}</a>`
+        : `<span class="article-source-link">${label}</span>`;
+
+      const meta = [
+        source.license ? `<span class="article-source-license">${escapeHtml(source.license)}</span>` : "",
+        source.attribution_text ? `<span class="article-source-attribution">${escapeHtml(source.attribution_text)}</span>` : ""
+      ].filter(Boolean).join("");
+
+      return `<li class="article-source">${link}${meta}</li>`;
+    }).join("");
+
+    return `
+      <section class="article-sources" aria-labelledby="article-sources-heading">
+        <h2 class="article-sources-heading" id="article-sources-heading">Sources &amp; references</h2>
+        <ul class="article-sources-list">${items}</ul>
+      </section>
+    `;
+  }
+
   function bindGallery(root, images) {
     const lightbox = $("#gallery-lightbox", root);
     const tiles = $$("[data-gallery-index]", root);
@@ -692,6 +769,17 @@
       const galleryRes = await fetch(`/api/articles/${a.id}/images`).catch(() => null);
       const galleryImages = galleryRes && galleryRes.ok ? ((await galleryRes.json()).images || []) : [];
 
+      // Citations are optional and never worth blocking the article on: a failed
+      // sources request simply renders the page without the section.
+      const sourcesRes = await fetch(`/api/articles/${a.id}/sources`).catch(() => null);
+      const sourcesList = sourcesRes && sourcesRes.ok ? ((await sourcesRes.json()).sources || []) : [];
+
+      // Monetization extras (sponsored badge, affiliate links, direct-ad opt-out).
+      // Optional in the same way: a failure only means no badge, no links and
+      // the site-wide ad default.
+      const monetPayload = await Monetization.article(a.id, a.slug);
+      const articleAdsEnabled = monetPayload ? monetPayload.ads_enabled !== false : true;
+
       const article = {
         id: a.id, slug: a.slug, title: a.title, content: a.content,
         bodyFormat: a.body_format === "html" ? "html" : "text",
@@ -784,16 +872,22 @@
             </div>
           </div>
           ${AdSlot.placeholder("before-article")}
+          ${articleAdsEnabled ? Monetization.placeholder("article_top") : ""}
           ${article.image ? `<img class="article-detail-cover" src="${article.image}" alt="${escapeHtml(article.bannerAlt || article.title)}" width="1200" height="675" fetchpriority="high" decoding="async">` : ""}
           <div class="article-detail-content">${renderArticleContent(
             article.content,
             article.bodyFormat,
-            AdSlot.inArticle("in-article", articleBlockCount(article.content, article.bodyFormat), {
-              contentPosition: AdSlot.positionOf("in-article")
-            })
+            [
+              AdSlot.inArticle("in-article", articleBlockCount(article.content, article.bodyFormat), {
+                contentPosition: AdSlot.positionOf("in-article")
+              }),
+              articleAdsEnabled ? { position: 35, markup: Monetization.placeholder("article_middle") } : null
+            ].filter(Boolean)
           )}</div>
+          ${articleAdsEnabled ? Monetization.placeholder("article_bottom") : ""}
           ${AdSlot.placeholder("after-article")}
           ${renderGallery(galleryImages)}
+          ${renderSources(sourcesList)}
           <div class="article-detail-footer">
             <div class="article-actions">
               <button class="btn btn-outline like-btn" data-id="${article.id}">&#9825; Like</button>
@@ -828,6 +922,8 @@
         bindGallery(document.getElementById("app"), galleryImages);
       }
       AdSlot.hydrate($("#app"));
+      // Sponsored badge, affiliate links and any article direct ads.
+      Monetization.renderArticleExtras($("#app"), monetPayload);
     } catch (e) {
       showError("Story not found.");
     }
@@ -1049,6 +1145,7 @@
             <h1 class="page-title">${escapeHtml(cat.name)}</h1>
             ${cat.description ? `<p class="page-subtitle">${escapeHtml(cat.description)}</p>` : ""}
           </div>
+          ${Monetization.placeholder("category_top")}
           ${renderTopicSwitcher(catData.categories, cat.slug)}
           ${articles.length ? `
             <div class="news-grid">
@@ -1085,6 +1182,7 @@
       if (slug === "travel" && window.KaliNovaOpenData) {
         window.KaliNovaOpenData.hydrateTravelMap();
       }
+      Monetization.hydrate($("#app"));
     } catch (e) {
       showError("Failed to load this category.");
     }
@@ -2044,8 +2142,8 @@ The future is still being written.`
   // offers. Nothing is invented, and no pricing or delivery claims are made.
   const SERVICES = [
     {
-      title: "Long-form stories across six topics",
-      body: "KaliNova publishes in-depth writing on Bollywood, Tollywood, Fashion, Latest News, Wildlife and Travel. Each story is written to be read rather than skimmed, and stays on the site under a permanent URL."
+      title: "Long-form stories across eight topics",
+      body: "KaliNova publishes in-depth writing on Bollywood, Tollywood, Fashion, Latest News, Wildlife, Travel, Lifestyle and Kids. Each story is written to be read rather than skimmed, and stays on the site under a permanent URL."
     },
     {
       title: "Topic pages that collect related writing",

@@ -32,6 +32,18 @@ const {
 
 const { countWords, stripTags } = require("./article-html");
 
+const { MAX_SOURCES } = require("./article-sources");
+
+/**
+ * The editorial rule the CMS repeats on every article screen.
+ *
+ * Kept verbatim so the wording in the interface and the wording in the docs are
+ * the same sentence rather than two paraphrases of each other.
+ */
+const EDITORIAL_POLICY_NOTICE =
+  "Use external APIs for research, facts, images, locations, RSS and source discovery. " +
+  "Do not copy third-party articles, reviews or long passages into the CMS.";
+
 /* ==================================================================== */
 /* Shared pieces                                                        */
 /* ==================================================================== */
@@ -290,12 +302,30 @@ function renderArticleForm({
   values = {},
   categories = [],
   uploads = [],
+  sources = [],
+  researchRefs = [],
+  similarity = null,
   errors = null,
-  uploadError = ""
+  uploadError = "",
+  notice = ""
 } = {}) {
   const isEdit = Boolean(article);
   const action = isEdit ? `/admin/articles/${escapeHtml(article.id)}` : "/admin/articles";
   const mode = values.status === STATUS_PUBLISHED ? STATUS_PUBLISHED : STATUS_DRAFT;
+
+  // Advertising choice echoed back from a validation re-render, else from the
+  // stored row. The row stores a nullable boolean; the form stores a 3-way
+  // string ("default" | "1" | "0") so the author's choice survives an error.
+  const submittedAdsChoice = ["default", "1", "0"].includes(values.ads_enabled)
+    ? values.ads_enabled
+    : null;
+  const adsEnabledRaw = submittedAdsChoice
+    ?? (article && typeof article.ads_enabled === "boolean"
+      ? article.ads_enabled ? "1" : "0"
+      : "default");
+  const adsChoiceDefault = adsEnabledRaw === "default" ? " checked" : "";
+  const adsChoiceYes = adsEnabledRaw === "1" ? " checked" : "";
+  const adsChoiceNo = adsEnabledRaw === "0" ? " checked" : "";
 
   const title = fieldValue(values.title ?? article?.title ?? "");
   const slug = fieldValue(values.slug ?? article?.slug ?? "");
@@ -307,6 +337,119 @@ function renderArticleForm({
   // disabled; the rich surface is created from it by admin-article-form.js.
   const body = String(values.content ?? article?.content ?? "");
   const words = countWords(body);
+
+  const noticeBlock = notice
+    ? `<p class="admin-alert admin-alert--info" role="status">${escapeHtml(notice)}</p>`
+    : "";
+
+  const policyNotice = `<p class="admin-alert admin-alert--info admin-notice--policy" role="note">${escapeHtml(EDITORIAL_POLICY_NOTICE)}</p>`;
+
+  /* ---- citations repeater ------------------------------------------- */
+  // One blank row is always rendered past the end, so an editor without
+  // JavaScript can still add a citation by filling it in and saving.
+  const citationRows = [];
+  for (let i = 0; i <= Math.min(sources.length, MAX_SOURCES - 1); i += 1) {
+    const row = sources[i] || {};
+    citationRows.push(`
+      <fieldset class="admin-source-row" data-source-row>
+        <legend class="sr-only">Source ${i + 1}</legend>
+        <div class="admin-field">
+          <label for="source-name-${i}">Source name</label>
+          <input type="text" id="source-name-${i}" name="source_name_${i}" maxlength="200"
+                 value="${fieldValue(row.name ?? "")}" placeholder="Wikidata, OSM, an interview…">
+        </div>
+        <div class="admin-field">
+          <label for="source-url-${i}">URL</label>
+          <input type="url" id="source-url-${i}" name="source_url_${i}" maxlength="500"
+                 value="${fieldValue(row.url ?? "")}" placeholder="https://…">
+        </div>
+        <div class="admin-field">
+          <label for="source-license-${i}">Licence</label>
+          <input type="text" id="source-license-${i}" name="source_license_${i}" maxlength="120"
+                 value="${fieldValue(row.license ?? "")}" placeholder="Leave blank if the source states none">
+        </div>
+        <div class="admin-field">
+          <label for="source-attribution-${i}">Attribution</label>
+          <input type="text" id="source-attribution-${i}" name="source_attribution_${i}" maxlength="600"
+                 value="${fieldValue(row.attribution ?? "")}" placeholder="Leave blank when no credit is required">
+        </div>
+        <button type="button" class="admin-button admin-button--tiny" data-remove-source>Remove</button>
+      </fieldset>`);
+  }
+
+  const citationBlock = `
+    <div class="admin-sources" data-sources>
+      <input type="hidden" name="source_count" value="${citationRows.length}" data-source-count>
+      ${citationRows.join("\n")}
+      <p class="admin-field-help">
+        These appear under the article as <strong>Sources &amp; references</strong>. A licence or an
+        attribution line is left blank when the source does not state one — nothing is invented for you.
+      </p>
+      ${fieldError(errors, "sources")}
+      <button type="button" class="admin-button admin-button--tiny" data-add-source>Add a source</button>
+    </div>`;
+
+  /* ---- attached research -------------------------------------------- */
+  const researchJson = escapeHtml(JSON.stringify(researchRefs));
+  const attachedList = researchRefs.length
+    ? researchRefs
+        .map(
+          ref => `<li data-ref-key="${escapeHtml(`${ref.source_key}:${ref.source_url || ref.source_name}`)}">
+            <strong>${escapeHtml(ref.source_name)}</strong>
+            <span class="admin-field-help">${escapeHtml(ref.source_key)}${ref.source_url ? ` · <a href="${escapeHtml(ref.source_url)}" rel="noopener noreferrer nofollow" target="_blank">${escapeHtml(ref.source_url)}</a>` : ""}</span>
+            <button type="button" class="admin-button admin-button--tiny" data-remove-ref>Remove</button>
+          </li>`
+        )
+        .join("\n")
+    : `<li class="admin-field-help">Nothing attached yet.</li>`;
+
+  const researchBlock = `
+    <details class="admin-research" data-research-panel>
+      <summary>Research panel — look up open data while you draft</summary>
+      <p class="admin-field-help">
+        Wikidata, Wikimedia Commons, OpenStreetMap and the reviewed RSS feeds. Results are read-only:
+        you can attach one as a <em>reference</em>, which stores its name, URL, licence and a short
+        excerpt for provenance. Nothing here is written into the article body.
+      </p>
+      <div class="admin-research-controls">
+        <label for="research-source">Source
+          <select id="research-source" data-research-source>
+            <option value="wikidata">Wikidata (CC0 1.0)</option>
+            <option value="commons">Wikimedia Commons (per file)</option>
+            <option value="news">Reviewed RSS feeds</option>
+            <option value="geo">OpenStreetMap / Nominatim (ODbL)</option>
+          </select>
+        </label>
+        <label for="research-query">Search
+          <input type="search" id="research-query" data-research-query maxlength="120" placeholder="Topic, file, place or headline">
+        </label>
+        <button type="button" class="admin-button" data-research-search>Search</button>
+        <span class="admin-research-status" data-research-status role="status"></span>
+      </div>
+      <p class="admin-field-help" data-research-disclaimer hidden></p>
+      <div class="admin-research-results" data-research-results></div>
+      <input type="hidden" name="research_refs" value="${researchJson}" data-research-refs>
+      <h3 class="admin-research-subhead">Attached references (<span data-ref-count>${researchRefs.length}</span>)</h3>
+      <ul class="admin-research-attached" data-research-attached>${attachedList}</ul>
+    </details>`;
+
+  /* ---- copy similarity ------------------------------------------------ */
+  const flagged = Boolean(similarity && similarity.flagged);
+  const similarityWarning = flagged
+    ? `<div class="admin-alert admin-alert--error admin-similarity" role="alert" data-similarity-warning>
+        <strong>Copy-similarity warning — about ${escapeHtml(similarity.percent)}% of this article matches reference material you attached.</strong>
+        <span>Threshold ${escapeHtml(Math.round(similarity.threshold * 100))}%, checked against ${escapeHtml(similarity.checked)} reference${similarity.checked === 1 ? "" : "s"}. This is an editorial nudge, not a plagiarism detector, and it blocks nothing on its own.</span>
+        <label class="admin-checkbox admin-checkbox--ack">
+          <input type="checkbox" name="acknowledge_similarity" value="1" data-similarity-ack>
+          <span>I have reviewed this and still want to publish.</span>
+        </label>
+      </div>`
+    : "";
+
+  const similarityHint =
+    !flagged && similarity
+      ? `<p class="admin-field-help" data-similarity-hint>Copy similarity: ${escapeHtml(similarity.percent)}% (threshold ${escapeHtml(Math.round(similarity.threshold * 100))}%). Only a match at or above the threshold asks for an acknowledgement.</p>`
+      : "";
 
   const categoryOptions = categories
     .map(
@@ -351,6 +494,8 @@ function renderArticleForm({
   </div>
 
   ${errorList(errors)}
+  ${noticeBlock}
+  ${policyNotice}
   ${uploadErrorBlock}
 
   <form class="admin-form admin-article-form" method="post" action="${escapeHtml(action)}" data-article-form>
@@ -445,6 +590,12 @@ function renderArticleForm({
       }
     </section>
 
+    <section class="admin-card" aria-labelledby="section-sources">
+      <h2 class="admin-card-title" id="section-sources">Sources &amp; research</h2>
+      ${citationBlock}
+      ${researchBlock}
+    </section>
+
     <section class="admin-card" aria-labelledby="section-body">
       <h2 class="admin-card-title" id="section-body">Article body</h2>
       <p class="admin-field-help">
@@ -487,6 +638,22 @@ function renderArticleForm({
       </div>
     </section>
 
+    <section class="admin-card admin-seo-panel" aria-labelledby="section-seo">
+      <h2 class="admin-card-title" id="section-seo">SEO check</h2>
+      <p class="admin-field-help">
+        A deterministic, internal content-quality report computed on the server (docs/seo-engine.md). It is
+        not a Google ranking metric, calls no third-party service and stores nothing. Check the published days'
+        worth of articles, then decide what to improve here before it lands.
+      </p>
+      <div class="admin-seo" data-seo-panel data-article-id="${isEdit ? escapeHtml(article.id) : ""}">
+        <div class="admin-seo-controls">
+          <button type="button" class="admin-button" data-seo-run>Run SEO check</button>
+          <span class="admin-seo-status" data-seo-status role="status"></span>
+        </div>
+        <div class="admin-seo-report" data-seo-report hidden></div>
+      </div>
+    </section>
+
     <section class="admin-card" aria-labelledby="section-status">
       <h2 class="admin-card-title" id="section-status">Status</h2>
 
@@ -502,6 +669,8 @@ function renderArticleForm({
         </label>
       </fieldset>
       ${fieldError(errors, "status")}
+      ${similarityWarning}
+      ${similarityHint}
 
       <div class="admin-form-actions">
         <button type="submit" name="intent" value="publish" class="admin-button admin-button--primary">${isEdit ? "Save &amp; publish" : "Publish"}</button>
@@ -510,10 +679,37 @@ function renderArticleForm({
         <a class="admin-button admin-button--ghost" href="/admin/articles">Cancel</a>
       </div>
     </section>
+
+    <section class="admin-card" aria-labelledby="section-ads">
+      <h2 class="admin-card-title" id="section-ads">Advertising</h2>
+      <p class="admin-field-help">
+        The site-wide advertising units are shown on the public layout unless this article opts out.
+        A category can set a default for its articles; this article-level setting wins when both exist.
+      </p>
+
+      <fieldset class="admin-radio-group">
+        <legend class="sr-only">Advertising on this article</legend>
+        <label class="admin-radio">
+          <input type="radio" name="ads_enabled" value="default"${adsChoiceDefault}>
+          <span><strong>Follow the category default</strong><br><span class="admin-field-help">Usually advertising is on; check the category defaults under Monetization.</span></span>
+        </label>
+        <label class="admin-radio">
+          <input type="radio" name="ads_enabled" value="1"${adsChoiceYes}>
+          <span><strong>Show ads</strong><br><span class="admin-field-help">Explicitly allow the advertising units on this article.</span></span>
+        </label>
+        <label class="admin-radio">
+          <input type="radio" name="ads_enabled" value="0"${adsChoiceNo}>
+          <span><strong>No ads</strong><br><span class="admin-field-help">Suppress the advertising units on this article, for example when a source or a topic demands it.</span></span>
+        </label>
+      </fieldset>
+      ${fieldError(errors, "ads_enabled")}
+    </section>
   </form>
 </main>
 
 <script src="/assets/admin/admin-article-form.js" defer></script>
+<script src="/assets/admin/admin-research.js" defer></script>
+<script src="/assets/admin/admin-seo.js" defer></script>
 
 ${adminFooter()}`;
 

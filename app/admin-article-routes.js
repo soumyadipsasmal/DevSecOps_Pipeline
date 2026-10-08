@@ -24,6 +24,8 @@ const security = require("./security");
 const articleService = require("./article-service");
 const uploads = require("./article-uploads");
 const articleViews = require("./admin-article-views");
+const articleSources = require("./article-sources");
+const contentSimilarity = require("./content-similarity");
 const { renderNotFoundPage } = require("./admin-views");
 
 const { STATUS_DRAFT, STATUS_PUBLISHED, validateArticle } = require("./article-validation");
@@ -163,6 +165,62 @@ function submittedValues(body) {
   };
 }
 
+/**
+ * Read the editorial extras off a submission.
+ *
+ * Sources are validated here rather than inside validateArticle so the article
+ * rules stay independent of the citations, and a bad source URL is reported as
+ * a form error instead of failing the whole article.
+ *
+ * @returns {{ ok: boolean, errors: object, sources: object[], research: object[] }}
+ */
+function readEditorial(body) {
+  const rows = articleSources.parseSourcesFromBody(body);
+  const validated = articleSources.validateSources(rows);
+
+  return {
+    ok: validated.ok,
+    errors: validated.ok ? {} : { sources: validated.error },
+    sources: validated.ok ? validated.sources : [],
+    rawSources: rows,
+    research: articleSources.parseResearchFromBody(body)
+  };
+}
+
+/**
+ * The copy-similarity gate.
+ *
+ * Never runs for a draft, and never runs when the editor has already
+ * acknowledged the number: it exists to put one explicit acknowledgement in
+ * front of a person who is about to publish, not to refuse the work.
+ *
+ * @returns {null | object} the similarity result when acknowledgment is missing
+ */
+function pendingSimilarityWarning(body, researchRefs) {
+  if (resolveStatus(body) !== STATUS_PUBLISHED) return null;
+  if (String(readField(body, "acknowledge_similarity") ?? "").trim() === "1") return null;
+
+  const result = contentSimilarity.score(
+    readField(body, "content", "body_html", "bodyHtml", "body"),
+    researchRefs
+  );
+
+  return result.flagged ? result : null;
+}
+
+/** Everything the form needs to render a submission back to the editor. */
+function formContext(body, { article = null, errors = {} } = {}) {
+  const editorial = readEditorial(body);
+
+  return {
+    article,
+    errors: { ...errors, ...editorial.errors },
+    values: submittedValues(body),
+    sources: editorial.rawSources,
+    researchRefs: editorial.research
+  };
+}
+
 /** JSON shape of an article for the admin API. */
 function articleJson(article) {
   return {
@@ -191,8 +249,47 @@ function notFound(res) {
   return res.status(404).json({ error: "Article not found" });
 }
 
-/** Render an upload failure without losing the rest of the form. */
-async function renderFormWithError(req, res, { article = null, errors = {}, uploadError = "" } = {}) {
+/**
+ * The copy-similarity warning as a 422 the API client can act on.
+ *
+ * Nothing is written: the caller resubmits with acknowledge_similarity=1 once
+ * a person has seen the number. Drafts never produce this response.
+ */
+function similarityRequired(res, similarity) {
+  return res.status(422).json({
+    error: "Copy-similarity acknowledgement required before publishing.",
+    code: "SIMILARITY_ACK_REQUIRED",
+    errors: {
+      acknowledge_similarity:
+        `About ${similarity.percent}% of this article matches reference material you attached. ` +
+        "Review it, then resubmit with acknowledge_similarity=1."
+    },
+    similarity: {
+      percent: similarity.percent,
+      threshold: Math.round(similarity.threshold * 100),
+      checked: similarity.checked,
+      worst: similarity.worst
+        ? { name: similarity.worst.name, percent: similarity.worst.percent }
+        : null
+    }
+  });
+}
+
+/**
+ * Render an upload or validation failure without losing the rest of the form.
+ *
+ * Sources and research references are re-read from the submitted body, so a
+ * rejected article never silently drops the citations the editor wrote.
+ */
+async function renderFormWithError(req, res, {
+  article = null,
+  errors = {},
+  uploadError = "",
+  similarity = null,
+  notice = ""
+} = {}) {
+  const body = req.body || {};
+  const editorial = readEditorial(body);
   const categories = await articleService.listCategories();
 
   return res.status(uploadError ? 400 : 422).type("html").send(
@@ -200,10 +297,14 @@ async function renderFormWithError(req, res, { article = null, errors = {}, uplo
       admin: req.admin,
       csrfToken: req.csrfToken,
       article,
-      values: submittedValues(req.body || {}),
       categories,
       uploads: await uploads.listUploads(),
-      errors,
+      values: submittedValues(body),
+      sources: editorial.rawSources,
+      researchRefs: editorial.research,
+      errors: { ...editorial.errors, ...errors },
+      similarity,
+      notice,
       uploadError
     })
   );
@@ -312,7 +413,9 @@ function registerPages(pages) {
           csrfToken: req.csrfToken,
           categories,
           uploads: recentUploads,
-          values: { status: STATUS_DRAFT }
+          values: { status: STATUS_DRAFT },
+          sources: [],
+          researchRefs: []
         })
       );
     } catch (error) {
@@ -333,7 +436,24 @@ function registerPages(pages) {
       const result = await validateSubmission(req.body);
       if (!result.ok) return renderFormWithError(req, res, { errors: result.errors });
 
+      const editorial = readEditorial(req.body);
+      if (!editorial.ok) return renderFormWithError(req, res);
+
+      // Publishing puts the copy-similarity number in front of the editor once.
+      // A draft never reaches here, and a save is never refused without one.
+      const warning = pendingSimilarityWarning(req.body, editorial.research);
+      if (warning) {
+        return renderFormWithError(req, res, {
+          similarity: warning,
+          notice: "Nothing was saved yet. Review the copy-similarity warning below, then publish again."
+        });
+      }
+
       const article = await articleService.createArticle(result.values);
+      await articleSources.saveEditorialRefs(article.id, {
+        sources: editorial.sources,
+        research: editorial.research
+      });
 
       return res.redirect(
         303,
@@ -365,10 +485,20 @@ function registerPages(pages) {
       const article = await articleService.getArticleForAdmin(id);
       if (!article) return notFoundPage(req, res);
 
-      const [categories, recentUploads] = await Promise.all([
+      const [categories, recentUploads, sources, research] = await Promise.all([
         articleService.listCategories(),
-        uploads.listUploads()
+        uploads.listUploads(),
+        articleSources.listSources(id),
+        articleSources.listResearch(id)
       ]);
+
+      // Show the number on load as well as on publish, so an editor can see the
+      // relationship between what they wrote and what they consulted before
+      // pressing anything.
+      const similarity = contentSimilarity.score(
+        article.content,
+        research.map(row => ({ name: row.source_name, text: row.reference_text }))
+      );
 
       return res.type("html").send(
         articleViews.renderArticleForm({
@@ -380,6 +510,20 @@ function registerPages(pages) {
           values: {
             status: article.status === STATUS_PUBLISHED ? STATUS_PUBLISHED : STATUS_DRAFT
           },
+          sources: sources.map(row => ({
+            name: row.source_name,
+            url: row.source_url,
+            license: row.license || "",
+            attribution: row.attribution_text || ""
+          })),
+          researchRefs: research.map(row => ({
+            source_key: row.source_key,
+            source_name: row.source_name,
+            source_url: row.source_url,
+            license: row.license,
+            reference_text: row.reference_text
+          })),
+          similarity,
           notice: ""
         })
       );
@@ -404,7 +548,23 @@ function registerPages(pages) {
       const result = await validateSubmission(req.body);
       if (!result.ok) return renderFormWithError(req, res, { article: existing, errors: result.errors });
 
+      const editorial = readEditorial(req.body);
+      if (!editorial.ok) return renderFormWithError(req, res, { article: existing });
+
+      const warning = pendingSimilarityWarning(req.body, editorial.research);
+      if (warning) {
+        return renderFormWithError(req, res, {
+          article: existing,
+          similarity: warning,
+          notice: "Nothing was saved yet. Review the copy-similarity warning below, then publish again."
+        });
+      }
+
       const article = await articleService.updateArticle(id, result.values);
+      await articleSources.saveEditorialRefs(id, {
+        sources: editorial.sources,
+        research: editorial.research
+      });
 
       return res.redirect(
         303,
@@ -581,7 +741,18 @@ function registerApi(api) {
       const result = await validateSubmission(req.body);
       if (!result.ok) return res.status(422).json({ error: "Validation failed", errors: result.errors });
 
+      const editorial = readEditorial(req.body);
+      if (!editorial.ok) return res.status(422).json({ error: "Validation failed", errors: editorial.errors });
+
+      const warning = pendingSimilarityWarning(req.body, editorial.research);
+      if (warning) return similarityRequired(res, warning);
+
       const article = await articleService.createArticle(result.values);
+      await articleSources.saveEditorialRefs(article.id, {
+        sources: editorial.sources,
+        research: editorial.research
+      });
+
       return res.status(201).json({ article: articleJson(article) });
     } catch (error) {
       return next(error);
@@ -596,8 +767,19 @@ function registerApi(api) {
       const result = await validateSubmission(req.body);
       if (!result.ok) return res.status(422).json({ error: "Validation failed", errors: result.errors });
 
+      const editorial = readEditorial(req.body);
+      if (!editorial.ok) return res.status(422).json({ error: "Validation failed", errors: editorial.errors });
+
+      const warning = pendingSimilarityWarning(req.body, editorial.research);
+      if (warning) return similarityRequired(res, warning);
+
       const article = await articleService.updateArticle(id, result.values);
       if (!article) return notFound(res);
+
+      await articleSources.saveEditorialRefs(id, {
+        sources: editorial.sources,
+        research: editorial.research
+      });
 
       return res.json({ article: articleJson(article) });
     } catch (error) {

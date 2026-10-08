@@ -25,6 +25,11 @@ services:
       DB_NAME: medium_clone
       DB_USER: medium_user
       DB_PASSWORD: medium_pass
+      # Set this to a Neon (or any URL-form) PostgreSQL connection string to
+      # use it instead of the local "db" service. Blank falls back to the
+      # DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASSWORD values above, so an
+      # unset variable keeps today's behaviour exactly.
+      DATABASE_URL: ${DATABASE_URL:-}
       JWT_SECRET: devsecops-development-secret
       ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:-change-this-in-production}
       # Open-data integrations (Wikidata / Commons / OSM / RSS). All optional:
@@ -62,6 +67,10 @@ services:
       MAP_TILE_HEALTHCHECK_MS: ${MAP_TILE_HEALTHCHECK_MS:-}
       MAP_TILE_HOURLY_LIMIT: ${MAP_TILE_HOURLY_LIMIT:-}
       MAP_TILE_DAILY_LIMIT: ${MAP_TILE_DAILY_LIMIT:-}
+      # SEO engine & redirects. Deterministic analyzer switches; empty selects
+      # the defaults in app/config.js (engine on, 5 related-story suggestions).
+      ENABLE_SEO_ENGINE: ${ENABLE_SEO_ENGINE:-}
+      SEO_INTERNAL_LINK_LIMIT: ${SEO_INTERNAL_LINK_LIMIT:-}
 
     # Uploaded banners live in the image filesystem by default. Mount a volume
     # here so CMS images survive a rebuild in a deployed environment.
@@ -110,6 +119,17 @@ services:
       # that records every automatic stop and every admin override. Empty at
       # first boot; each service writes its row the first time it is used.
       - ./database/schema-integration-safety.sql:/docker-entrypoint-initdb.d/12-integration-safety.sql:ro
+      # Editorial citations and research provenance. Two new tables attached to
+      # articles; nothing already in the database is read or rewritten.
+      - ./database/schema-research-sources.sql:/docker-entrypoint-initdb.d/13-research-sources.sql:ro
+      # Monetization dashboard. Storage only: affiliate links, sponsored
+      # campaigns, direct-ads campaigns, newsletter subscribers, disclosure
+      # texts and the audit log all start empty, and the two existing-table
+      # changes are additive defaults — KaliNova remains unmonetised.
+      - ./database/schema-monetization.sql:/docker-entrypoint-initdb.d/14-monetization.sql:ro
+      # SEO engine & redirects. One new table for slug-change/retired URLs; it
+      # starts empty. Nothing in the schema touches an existing table.
+      - ./database/schema-seo-engine.sql:/docker-entrypoint-initdb.d/15-seo-engine.sql:ro
 
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U medium_user -d medium_clone"]

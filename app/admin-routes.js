@@ -25,6 +25,10 @@ const config = require("./config");
 const security = require("./security");
 const views = require("./admin-views");
 const articleRoutes = require("./admin-article-routes");
+const researchRoutes = require("./admin-research-routes");
+const monetizationRoutes = require("./admin-monetization-routes");
+const seoRoutes = require("./admin-seo-routes");
+const redirectRoutes = require("./admin-redirect-routes");
 
 const adminPages = express.Router();
 const adminApi = express.Router();
@@ -239,6 +243,14 @@ articleRoutes.registerPages(adminPages);
 // Ads & Monetization screens. Same chain, same guards.
 adsRoutes.registerPages(adminPages);
 
+// Monetization dashboard screens (affiliate, sponsored, direct ads,
+// newsletter, disclosures, settings, audit). Same chain, same guards.
+monetizationRoutes.registerPages(adminPages);
+
+// Redirect management screens (retired URL forwarding for slug changes and
+// hand-written 301s). Same chain, same guards.
+redirectRoutes.registerPages(adminPages);
+
 // Integrations & automatic safety screens. Same chain, same guards.
 integrationsRoutes.registerPages(adminPages);
 
@@ -319,8 +331,22 @@ articleRoutes.registerApi(adminApi);
 // Ads & Monetization JSON endpoints, before the 404 handler.
 adsRoutes.registerApi(adminApi);
 
+// Monetization dashboard JSON endpoints (overview, affiliate, sponsored,
+// direct ads, newsletter, disclosures, settings, audit).
+monetizationRoutes.registerApi(adminApi);
+
+// Redirect JSON endpoints, before the 404 handler.
+redirectRoutes.registerApi(adminApi);
+
+// SEO engine endpoints (GET article report, POST editor-content analysis).
+seoRoutes.registerApi(adminApi);
+
 // Integrations & safety JSON endpoints, before the 404 handler.
 integrationsRoutes.registerApi(adminApi);
+
+// Editorial research lookups, before the 404 handler. Read-only: it proxies
+// the four open-data services for the editor panel and can mutate nothing.
+researchRoutes.registerApi(adminApi);
 
 adminApi.use((req, res) => {
   res.status(404).json({ error: "Not found" });

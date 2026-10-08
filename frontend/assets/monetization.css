@@ -1,0 +1,152 @@
+/* ==========================================================================
+   Monetization surfaces (direct ads, sponsored badge, affiliate links)
+   ==========================================================================
+   Rendered by assets/monetization.js. The same rules as ads.css apply:
+   nothing shows unless the server said it is servable, an empty slot adds no
+   space, and a dead image/list collapses instead of leaving a labelled hole.
+   ------------------------------------------------------------------------ */
+
+/* Direct banner campaigns ------------------------------------------------ */
+
+.monet-ad-slot {
+  display: block;
+  margin: 0 0 24px;
+}
+
+.monet-ad-slot:empty {
+  display: none;
+  margin: 0;
+}
+
+/* Vertically centred between paragraphs: a tall creative needs to breathe
+   without pushing the measure left or right. */
+.article-detail-content .monet-ad-slot {
+  margin: 32px 0;
+}
+
+.sidebar .monet-ad-slot {
+  margin: 0 0 20px;
+}
+
+.monet-ad {
+  display: block;
+  width: 100%;
+  text-decoration: none;
+}
+
+.monet-ad img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius-md);
+}
+
+.footer-ad .monet-ad-slot {
+  margin: 0 auto;
+  max-width: 970px;
+  padding: 0 16px;
+}
+
+/* An ad that resolved to an empty anchor still reserves nothing. */
+a.monet-ad:not([href]),
+a.monet-ad[href="#"] {
+  display: none;
+}
+
+/* Sponsored badge --------------------------------------------------------- */
+
+.monet-sponsored {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  align-items: baseline;
+  margin: 0 0 24px;
+  padding: 12px 16px;
+  border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-md);
+  background: var(--paper-raised);
+}
+
+.monet-sponsored-label {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.monet-sponsored-body {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+
+.monet-sponsored-body a {
+  color: inherit;
+  font-weight: 600;
+}
+
+.monet-sponsored-disclosure {
+  display: block;
+  margin-top: 6px;
+  color: var(--ink-muted);
+}
+
+/* Affiliate links --------------------------------------------------------- */
+
+.monet-affiliate {
+  margin: 32px 0 0;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+.monet-affiliate-heading {
+  margin: 0 0 12px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.monet-affiliate-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.monet-affiliate-link {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.monet-affiliate-href {
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.monet-affiliate-href:hover {
+  text-decoration: underline;
+}
+
+.monet-affiliate-network {
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+  background: var(--paper-raised);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.monet-affiliate-note {
+  margin: 8px 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  color: var(--ink-muted);
+}

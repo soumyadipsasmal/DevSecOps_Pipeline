@@ -263,7 +263,8 @@ check("the settings form posts to /admin/ads/settings", viewsSource.includes('ac
 check("the placement form posts to the placement id", /action="\/admin\/ads\/\$\{id\}"/.test(viewsSource));
 check("both forms carry a CSRF token", (viewsSource.match(/name="_csrf"/g) || []).length >= 2);
 
-check("the nav has an Ads & Monetization link", adminViewsSource.includes('item("Ads & Monetization", "/admin/ads", "ads")'));
+check("the nav has an Ads link", adminViewsSource.includes('item("Ads", "/admin/ads", "ads")'));
+check("the nav has an Ads link before the Monetization link", adminViewsSource.indexOf('item("Ads", "/admin/ads", "ads")') < adminViewsSource.indexOf('item("Monetization", "/admin/monetization", "monetization")'));
 
 // The checkbox helper takes its name as a JS argument, not as rendered markup,
 // so the assertion is on that call rather than on a name="..." attribute.
@@ -379,7 +380,8 @@ section("In-content placement does not split a paragraph");
 // paragraph can never be cut in half by a percentage calculation.
 check("the body is built as DOM before the slot is placed", /document\.createElement\("div"\)/.test(pagesSource));
 check("the block count comes from the body's top-level children", /holder\.children/.test(pagesSource));
-check("the slot is inserted after a whole block", /\.after\(slot\.firstElementChild\)/.test(pagesSource));
+check("the slot node is the placeholder's first element child", /slot\.firstElementChild/.test(pagesSource));
+check("the slot is inserted after a whole block", /\.after\(element\)/.test(pagesSource));
 check("no paragraph is split by string surgery", !/content\.slice\(|split\("<p"/.test(pagesSource));
 check("a short article gets no in-content ad", /blockCount < 3|blocks\.length < 3/.test(pagesSource) || /blocks\.length < 3/.test(pagesSource));
 

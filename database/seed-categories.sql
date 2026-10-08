@@ -5,5 +5,7 @@ VALUES
     ('Fashion',     'fashion',     'Design, craft, and the people rethinking how clothes get made.',    3),
     ('Latest News', 'latest-news', 'What changed today, and what it means for the week ahead.',        4),
     ('Wildlife',    'wildlife',    'Animals, habitats, and the science of keeping them.',             5),
-    ('Travel',      'travel',      'Slow journeys, long trains, and places worth the flight.',         6)
+    ('Travel',      'travel',      'Slow journeys, long trains, and places worth the flight.',         6),
+    ('Lifestyle',   'lifestyle',  'Style, wellness, food, and everyday living ideas.',               7),
+    ('Kids',        'kids',       'Stories, activities, and family-friendly content.',               8)
 ON CONFLICT (slug) DO NOTHING;

@@ -97,12 +97,13 @@ npm start                     # http://localhost:3007
 | Script | Purpose |
 | --- | --- |
 | `npm start` | Start the Express server |
-| `npm run migrate` | Apply the five idempotent migrations and verify the columns landed |
+| `npm run migrate` | Apply the eight idempotent migrations and verify the columns landed |
 | `npm run create-admin` | Create or repair an administrator account |
 | `npm run seed:images` | Match article photos to article bodies |
 | `npm run sitemap` | Regenerate `frontend/sitemap.xml` |
-| `npm test` | The whole test battery (8 suites, 829 checks) |
+| `npm test` | The whole test battery (11 suites, 1121 checks) |
 | `npm run test:seo` | SEO smoke test |
+| `npm run test:seo-engine` | SEO engine: determinism, report contract, redirects, wiring, schema |
 | `npm run test:admin` | Offline admin authentication tests (no database needed) |
 | `npm run test:cms` | Article CMS: sanitiser, validation, uploads, views |
 | `npm run test:admin:ads` | Ads admin screens, settings, CSP and packaging rules |
@@ -110,6 +111,7 @@ npm start                     # http://localhost:3007
 | `npm run test:admin:live` | End-to-end admin HTTP checks against a running server |
 | `npm run test:cb` | Circuit-breaker and feed-safety tests |
 | `npm run test:external` | Open-data services, licences and repository guardrails |
+| `npm run test:monetization` | Monetization CRUD, privacy metadata, wiring and schema |
 
 ## Configuration
 
@@ -154,7 +156,10 @@ instead of signing cookies with a key an attacker already knows.
 
 Tables: `users`, `articles`, `categories`, `article_images`, `ad_settings`,
 `ad_placements`, `external_data_cache`, `rss_items`, `integration_status`,
-`integration_events`.
+`integration_events`, `article_sources`, `article_research_metadata`,
+`affiliate_links`, `affiliate_clicks`, `sponsored_campaigns`, `direct_ads`,
+`direct_ad_events`, `newsletter_subscribers`, `monetization_disclosures`,
+`monetization_audit_logs`, `redirects`.
 
 | File | Adds |
 | --- | --- |
@@ -165,19 +170,24 @@ Tables: `users`, `articles`, `categories`, `article_images`, `ad_settings`,
 | `database/schema-ad-placements.sql` | `ad_settings` + `ad_placements`, seeded **disabled** with no publisher id |
 | `database/schema-external-data.sql` | `external_data_cache` + reviewed `rss_items` (start empty) |
 | `database/schema-integration-safety.sql` | Per-service breaker state and the automatic-stop event log |
+| `database/schema-research-sources.sql` | `article_sources` (citations) + `article_research_metadata` (provenance) |
+| `database/schema-monetization.sql` | Monetization dashboard storage — all empty or disabled |
+| `database/schema-seo-engine.sql` | `redirects` table for slug-change / retired URLs (starts empty) |
 
 ```bash
 cd app
 npm run migrate
 ```
 
-The runner applies the last five files in the table above
-(`schema-admin-auth`, `schema-article-cms`, `schema-ad-placements`,
-`schema-external-data`, `schema-integration-safety`), each in its own
-transaction, then reads `information_schema` and fails loudly if a column is
-still missing. It is idempotent and never rewrites existing article content
-or an existing `password_hash`. The first two files are base schema and are
-applied by the database init (or your own `psql`) before any migration runs.
+The runner applies the eight additive files from the previous phase in the
+table above (`schema-admin-auth`, `schema-article-cms`,
+`schema-ad-placements`, `schema-external-data`, `schema-integration-safety`,
+`schema-research-sources`, `schema-monetization`, `schema-seo-engine`), each
+in its own transaction, then reads `information_schema` and fails loudly if a
+column is still missing. It is idempotent and never rewrites existing article
+content or an existing `password_hash`. The first two files are base schema
+and are applied by the database init (or your own `psql`) before any
+migration runs.
 
 Equivalent without the script:
 
@@ -197,19 +207,22 @@ Seeds: `seed-categories.sql`, `seed.sql`, `seed-topics.sql`,
 
 ## Testing
 
-`npm test` runs eight independent suites — **829 checks in total** — and any
+`npm test` runs eleven independent suites — **1121 checks in total** — and any
 failing check exits non-zero:
 
 | # | Suite | Script | Needs | Checks |
 | --- | --- | --- | --- | --- |
 | 1 | SEO smoke | `test:seo` | nothing | 76 |
-| 2 | Admin authentication (offline) | `test:admin` | nothing | 100 |
-| 3 | Article CMS | `test:cms` | nothing | 189 |
-| 4 | Admin ads screens | `test:admin:ads` | nothing | 167 |
-| 5 | Public ads / consent | `test:ads` | a reachable database | 72 |
-| 6 | Live admin HTTP | `test:admin:live` | server + admin account | 116 |
-| 7 | Circuit breakers | `test:cb` | nothing | 30 |
-| 8 | Open-data services | `test:external` | nothing | 79 |
+| 2 | SEO engine & redirects | `test:seo-engine` | a reachable database | 93 |
+| 3 | Admin authentication (offline) | `test:admin` | nothing | 100 |
+| 4 | Article CMS | `test:cms` | nothing | 189 |
+| 5 | Admin ads screens | `test:admin:ads` | nothing | 170 |
+| 6 | Public ads / consent | `test:ads` | a reachable database | 72 |
+| 7 | Live admin HTTP | `test:admin:live` | server + admin account | 116 |
+| 8 | Circuit breakers | `test:cb` | nothing | 30 |
+| 9 | Open-data services | `test:external` | nothing | 79 |
+| 10 | Research workflow | `test:research` | a reachable database | 92 |
+| 11 | Monetization | `test:monetization` | a reachable database | 104 |
 
 The live suite covers the sign-in page, invalid email, invalid password,
 successful sign-in, the redirect to the dashboard, dashboard access while
@@ -221,7 +234,7 @@ site and article/category endpoints still respond. Without `ADMIN_EMAIL` /
 
 ```bash
 cd app
-npm test                       # all 8 suites; the live one SKIPs without a server
+npm test                       # all 11 suites; the live one SKIPs without a server
 
 BASE_URL=http://localhost:3007 \
 ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD='your-password' \
@@ -487,6 +500,41 @@ reuses the existing `articles` and `categories` tables and adds four columns
 - **Body size.** Article JSON bodies are limited separately from the rest of
   the API by `ADMIN_ARTICLE_BODY_KB` (default `512kb`).
 
+### Sources and research
+
+External APIs are a **research surface, not a publishing surface**. The rule is
+shown on every article screen:
+
+> Use external APIs for research, facts, images, locations, RSS and source
+> discovery. Do not copy third-party articles, reviews or long passages into
+> the CMS.
+
+- **Research panel.** A `<details>` block above the article body queries
+  `GET /api/admin/research?source=wikidata|commons|news|geo&q=…` — an
+  admin-only, rate-limited, read-only proxy over the four integrations listed
+  in [Open-data integrations](#open-data-integrations). It has no write method,
+  no article insert, and no field that is ever submitted back into the body.
+  A bare `Q123` on the Wikidata tab fetches that entity's curated facts.
+- **Attach as reference.** A result can be attached as provenance: its name,
+  URL, licence label and a short excerpt go into `article_research_metadata`.
+  That table is internal — never served publicly, never rendered on the article
+  page, and never pasted into the body.
+- **Citations.** The sources an editor writes by hand live in `article_sources`
+  (up to 12 per article: name, URL, optional licence and attribution), are
+  validated in `app/article-sources.js`, and are published with the article via
+  `GET /api/articles/:id/sources` / `GET /api/articles/slug/:slug/sources`.
+  Both endpoints filter on `status = 'published'`, so a draft's reference list
+  cannot be read. The public page renders them under **Sources & references**.
+  A licence or credit the source did not state stays blank — nothing is
+  invented.
+- **Copy-similarity warning.** `app/content-similarity.js` scores the body
+  against the attached reference excerpts with 5-word shingle containment and
+  reports a percentage. At or above `SIMILARITY_WARN_PERCENT` (default `35`),
+  publishing shows a red warning and one explicit acknowledgement checkbox.
+  **Drafts are never blocked and a save is never refused.** This is an
+  editorial nudge, not a plagiarism detector: it holds no index of anyone
+  else's writing and reaches no legal conclusion.
+
 ### Draft visibility
 
 Drafts never reach the public site. The list, single-article, category and
@@ -539,6 +587,36 @@ all.
 
 ---
 
+## SEO engine and redirects
+
+The admin article form carries a **SEO check** panel that runs a deterministic,
+server-side content-quality analyzer ([`docs/seo-engine.md`](docs/seo-engine.md)).
+It is **not a Google ranking metric** — it is a fixed, transparent checklist
+(38 checks across six weighted categories) that flags a missing meta
+description, an over-long title, a broken internal link and similar edit-time
+oversights. Nothing is stored, nothing is sent off-site, and a low score never
+blocks publishing; only a critical technical or content problem produces
+`BLOCKED`.
+
+- **Engine.** Pure, deterministic, offline (`app/seo-engine.js`); the checks
+  that need the database (duplicate title/slug, broken-link lookup, related-
+  story candidates) are injected as services by `app/admin-seo-routes.js`.
+- **Panel.** `GET /api/admin/articles/:id/seo` analyzes a stored article;
+  `POST /api/admin/articles/seo/analyze` analyzes live editor content behind
+  CSRF and a per-IP limit.
+- **Redirects.** When a *published* article's slug is renamed, the CMS writes a
+  301 from the old URL, and `/admin/redirects` manages retired URLs by hand.
+  Sources are clean public site paths only (never `/admin`, `/api`, `/assets`,
+  `/go` or `/health`); paused rows stop forwarding without being deleted, and a
+  unique index on `source_path` is the duplicate guard.
+- **Serve.** The public server answers `GET`/`HEAD` against the `redirects`
+  table with `no-store` before the SPA fallback, so an old `/blog/<slug>` is
+  forwarded instead of served as an empty shell.
+
+`npm run test:seo-engine` covers all of the above (93 checks).
+
+---
+
 ## Open-data integrations
 
 Optional enrichments read from public open data. Every one has a working
@@ -553,10 +631,16 @@ exactly as shipped.
 | Headlines | `/api/news/latest` | Reviewed RSS feeds (Wikimedia Foundation, Mongabay) — CC BY-SA / CC BY-ND |
 
 The full per-source licence and compliance record lives in
-[`docs/external-data-licenses.md`](docs/external-data-licenses.md). The feed
-registry in `app/rss-feeds.js` marks each entry `enabled` and `termsReviewed`;
+[`docs/external-data-licenses.md`](docs/external-data-licenses.md), including
+the endpoint inventory (what data each endpoint returns, where it is used in
+the site, and whether it is displayed publicly or stored). The feed registry
+in `app/rss-feeds.js` marks each entry `enabled` and `termsReviewed`;
 an entry that is disabled or unreviewed is filtered out before any fetch, so
 only reviewed feeds ever publish a headline.
+
+The editor-facing half of the same policy — research lookups, citations and
+the copy-similarity warning — is documented under
+[Admin article CMS → Sources and research](#sources-and-research).
 
 ### Automatic safety layer
 
@@ -698,25 +782,28 @@ it (October 2026, local machine):
 | Step | Command | Result |
 | --- | --- | --- |
 | 1. Build and start | `docker compose up -d --build` | `devsecops-app` (:3007) and `devsecops-compose-db` (:5434, healthy) running |
-| 2. Schema and seeds | `docker-entrypoint-initdb.d` (on first volume creation) | Verified present: 10 tables, 59 published articles, 6 categories |
+| 2. Schema and seeds | `docker-entrypoint-initdb.d` (on first volume creation) | Verified present: 11 tables, 59 published articles, 6 categories |
 | 3. Create the administrator | `docker compose exec app npm run create-admin` | `Administrator ready: admin@example.com (id 4, role admin)` |
 | 4. Public site | `GET /` | `200`, SPA shell served |
 | 5. Admin login page | `GET /admin/login` | `200` |
 | 6. Public API | `GET /api/articles` | `200` |
-| 7. Full test battery | `npm test` | **8 suites, 829 checks, 0 failures** |
+| 7. Full test battery | `npm test` | **11 suites, 1121 checks, 0 failures** |
 | 8. Live admin suite | `npm run test:admin:live` | `ALL 116 CHECKS PASSED` |
 
 Per-suite results:
 
 ```
 seo-smoke-test        ALL CHECKS PASSED            (76)
+seo-engine-test       93 checks passed, 0 failed
 admin-auth-test       ALL 100 CHECKS PASSED
 cms-test              189 checks passed, 0 failed
-admin-ads-test        167 checks passed, 0 failed
+admin-ads-test        170 checks passed, 0 failed
 ads-test              72/72 passed
 admin-smoke-test      ALL 116 CHECKS PASSED
 circuit-breaker-test  30/30 passed
 external-test         79/79 passed
+research-workflow-test 92 checks passed, 0 failed
+monetization-test     104 checks passed, 0 failed
 ```
 
 The seven CI gates mirror these steps: secrets, SAST, SCA, IaC, container,

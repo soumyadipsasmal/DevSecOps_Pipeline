@@ -19,6 +19,17 @@
  *   ADMIN_UPLOAD_MAX_KB  banner upload limit in KB             (default 6144)
  *   ADMIN_COOKIE_SECURE    force the Secure cookie flag        (default: true in production)
  *   TRUST_PROXY            trust X-Forwarded-* from a proxy    (default false)
+ *
+ * Monetization
+ *   ANALYTICS_SALT      random 64-char hex used to hash client addresses in the
+ *                       anonymised event logs (see monetization-service.js).
+ *                       Optional: when unset, events are recorded with an empty
+ *                       hash so no per-visitor data is retained at all.
+ *   NEWSLETTER_FROM_EMAIL  display address used if a provider is configured
+ *   NEWSLETTER_PROVIDER    delivery provider name; the site currently ships
+ *                       without one, so subscriptions are stored but no email
+ *                       is sent. Setting a value only enables the preflight
+ *                       wiring, not sending.
  */
 
 const crypto = require("crypto");
@@ -266,6 +277,28 @@ const config = Object.freeze({
   }),
   mapTileHourlyLimit: readInteger("MAP_TILE_HOURLY_LIMIT", 4, { min: 1, max: 1000 }),
   mapTileDailyLimit: readInteger("MAP_TILE_DAILY_LIMIT", 96, { min: 1, max: 100_000 }),
+
+  // --- Monetization ---------------------------------------------------------
+  // ANALYTICS_SALT is a server secret used only to HMAC client addresses in the
+  // pruneable event tables; it is never exposed to any client. When unset, the
+  // event rows simply get an empty hash and no per-visitor data is retained.
+  analyticsSalt: String(process.env.ANALYTICS_SALT || "").trim(),
+  // The newsletter has no delivery provider bundled with the site. NEWSLETTER_
+  // FROM_EMAIL is the display address a future provider would send from, and
+  // NEWSLETTER_PROVIDER is accepted only so a deployment can record which
+  // provider it wires in; neither one switches email sending on by itself.
+  newsletterProvider: String(process.env.NEWSLETTER_PROVIDER || "").trim(),
+  newsletterFromEmail: String(process.env.NEWSLETTER_FROM_EMAIL || "").trim(),
+
+  // --- SEO Engine -----------------------------------------------------------
+  // A deterministic, internal content-quality analyzer (docs/seo-engine.md).
+  // It is not a Google ranking metric, runs entirely on the server, and stores
+  // nothing. ENABLE_SEO_ENGINE lets a deployment hide the panel without code
+  // changes; SEO_INTERNAL_LINK_LIMIT caps the related-story suggestions the
+  // editor requests in one analysis run.
+  enableSeoEngine: readBoolean("ENABLE_SEO_ENGINE", true),
+  seoEngineVersion: "seo-v1",
+  seoInternalLinkLimit: readInteger("SEO_INTERNAL_LINK_LIMIT", 5, { min: 0, max: 20 }),
 
   sessionSecret: resolveSessionSecret(),
   sessionMaxAgeMs,

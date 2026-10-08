@@ -161,7 +161,16 @@
         ? window.KaliNovaAds.ready()
         : Promise.resolve(null);
 
-    adsReady
+    // Same contract for the monetization manifest: fetched before the first
+    // route, cached for the page load, all-off on failure. It also points the
+    // sidebar newsletter card at the live subscribe endpoint, which is safe to
+    // do even when there are no campaigns configured.
+    const monetReady =
+      window.KaliNovaMonetization && typeof window.KaliNovaMonetization.ready === "function"
+        ? window.KaliNovaMonetization.ready()
+        : Promise.resolve(null);
+
+    Promise.all([adsReady, monetReady])
       .catch(() => null)
       .then(() => {
         Router.init();
@@ -170,6 +179,7 @@
         // pages.js also calls hydrate directly for the routes it owns, so this is
         // only a safety net for pages that do not.
         if (window.KaliNovaAds) window.KaliNovaAds.onRoute(() => window.KaliNovaAds.hydrateAll());
+        if (window.KaliNovaMonetization) window.KaliNovaMonetization.onRoute(() => window.KaliNovaMonetization.hydrateAll());
       });
 
     // The router fires this for clean-path navigation too, so a hashchange
