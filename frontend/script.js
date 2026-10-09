@@ -175,6 +175,11 @@
       .then(() => {
         Router.init();
 
+        // Opt-in, consent-gated analytics. A silent no-op unless an operator
+        // configured a GA4 id and the reader has granted consent (see
+        // assets/analytics.js). It never blocks rendering.
+        if (window.KaliNovaAnalytics) window.KaliNovaAnalytics.init();
+
         // After any navigation, push whatever placeholders the new page rendered.
         // pages.js also calls hydrate directly for the routes it owns, so this is
         // only a safety net for pages that do not.

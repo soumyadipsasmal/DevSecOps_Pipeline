@@ -1189,6 +1189,159 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* Tag & author archives                                              */
+  /* ------------------------------------------------------------------ */
+
+  function archiveArticleCard(a) {
+    return {
+      id: a.id,
+      slug: a.slug,
+      title: a.title,
+      excerpt: cardExcerpt(a),
+      author: { name: a.author_username || "KaliNova", avatar: a.author_avatar || DEFAULT_AVATAR },
+      category: a.category_name || "General",
+      categorySlug: a.category_slug,
+      image: a.cover_image || DEFAULT_COVER,
+      bannerAlt: a.banner_alt || "",
+      date: formatDate(a.published_at || a.created_at),
+      readTime: readMins(a.content, a.body_format)
+    };
+  }
+
+  function renderArchiveGrid(articles, emptyLabel) {
+    if (!articles.length) {
+      return `<div class="empty-state">
+          <p class="empty-state-title">Nothing here yet.</p>
+          <p>${escapeHtml(emptyLabel)}</p>
+        </div>`;
+    }
+    return `<div class="news-grid">
+      ${articles.map(a => `
+        <article class="news-card">
+          <a class="news-card-media" href="${articlePath(a)}" aria-label="${escapeHtml(a.title)}"><img src="${a.image}" alt="${escapeHtml(a.bannerAlt || a.title)}" loading="lazy" decoding="async" width="400" height="300"></a>
+          <div class="news-card-body">
+            <span class="news-card-date">${a.date}</span>
+            <h3 class="news-card-title"><a href="${articlePath(a)}">${escapeHtml(a.title)}</a></h3>
+            <p class="news-card-excerpt">${a.excerpt}</p>
+            <div class="news-card-meta">
+              <img class="avatar avatar-xxs" src="${a.author.avatar}" alt="${escapeHtml(a.author.name)}" width="20" height="20" loading="lazy" decoding="async">
+              <span class="meta-author">${escapeHtml(a.author.name)}</span>
+              <span class="meta-dot">&middot;</span>
+              <span>${a.readTime} min read</span>
+            </div>
+          </div>
+        </article>
+      `).join("")}
+    </div>`;
+  }
+
+  function renderArchiveShell({ heading, subtitle, articles, emptyLabel }) {
+    renderApp(`
+      <div class="page-container">
+        <nav class="breadcrumbs" aria-label="Breadcrumb">
+          <ol class="breadcrumbs-list">
+            <li class="breadcrumbs-item"><a href="/">Home</a><span class="breadcrumbs-sep" aria-hidden="true">/</span></li>
+            <li class="breadcrumbs-item"><a href="/stories">Stories</a><span class="breadcrumbs-sep" aria-hidden="true">/</span></li>
+            <li class="breadcrumbs-item"><span aria-current="page">${escapeHtml(heading)}</span></li>
+          </ol>
+        </nav>
+        <div class="page-header">
+          <h1 class="page-title">${escapeHtml(heading)}</h1>
+          ${subtitle ? `<p class="page-subtitle">${escapeHtml(subtitle)}</p>` : ""}
+        </div>
+        ${Monetization.placeholder("category_top")}
+        ${renderArchiveGrid(articles, emptyLabel)}
+      </div>
+    `);
+  }
+
+  async function renderTag(params) {
+    const slug = params && params.slug;
+    if (!slug) return renderHome();
+
+    showLoading("Loading stories...");
+    try {
+      const res = await fetch(`/api/tags/${encodeURIComponent(slug)}`);
+      if (res.status === 404) {
+        if (SEO) {
+          SEO.applyPage("search", {
+            path: `/tag/${slug}`,
+            title: "Tag not found | KaliNova",
+            description: "This tag does not exist on KaliNova.",
+            noindex: true
+          });
+        }
+        return renderApp(`
+          <div class="page-container">
+            <div class="empty-state">
+              <p class="empty-state-title">This tag doesn't exist.</p>
+              <a class="btn btn-primary" href="/">Back to home</a>
+            </div>
+          </div>
+        `);
+      }
+      if (!res.ok) throw new Error("API error");
+
+      const data = await res.json();
+      const articles = (data.articles || []).map(archiveArticleCard);
+      if (SEO) SEO.applyTag(data.tag, articles.length);
+
+      renderArchiveShell({
+        heading: data.tag.name,
+        subtitle: data.tag.description || "",
+        articles,
+        emptyLabel: `No stories tagged ${data.tag.name} so far.`
+      });
+      Monetization.hydrate($("#app"));
+    } catch (e) {
+      showError("Failed to load this tag.");
+    }
+  }
+
+  async function renderAuthor(params) {
+    const slug = params && params.slug;
+    if (!slug) return renderHome();
+
+    showLoading("Loading stories...");
+    try {
+      const res = await fetch(`/api/authors/${encodeURIComponent(slug)}`);
+      if (res.status === 404) {
+        if (SEO) {
+          SEO.applyPage("search", {
+            path: `/author/${slug}`,
+            title: "Author not found | KaliNova",
+            description: "This author does not exist on KaliNova.",
+            noindex: true
+          });
+        }
+        return renderApp(`
+          <div class="page-container">
+            <div class="empty-state">
+              <p class="empty-state-title">This author doesn't exist.</p>
+              <a class="btn btn-primary" href="/">Back to home</a>
+            </div>
+          </div>
+        `);
+      }
+      if (!res.ok) throw new Error("API error");
+
+      const data = await res.json();
+      const articles = (data.articles || []).map(archiveArticleCard);
+      if (SEO) SEO.applyAuthor(data.author, articles.length);
+
+      renderArchiveShell({
+        heading: data.author.username,
+        subtitle: data.author.bio || "",
+        articles,
+        emptyLabel: `No stories by ${data.author.username} yet.`
+      });
+      Monetization.hydrate($("#app"));
+    } catch (e) {
+      showError("Failed to load this author.");
+    }
+  }
+
+  /* ------------------------------------------------------------------ */
   /* Portfolio Page                                                     */
   /* ------------------------------------------------------------------ */
   function renderPortfolio() {
@@ -2464,6 +2617,8 @@ The future is still being written.`
   Router.register("/stories", renderStories);
   Router.register("/news", renderNews);
   Router.register("/category/:slug", renderCategory);
+  Router.register("/tag/:slug", renderTag);
+  Router.register("/author/:slug", renderAuthor);
   Router.register("/about", renderAbout);
   Router.register("/services", renderServices);
   Router.register("/contact", renderContact);

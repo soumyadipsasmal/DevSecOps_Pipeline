@@ -55,6 +55,8 @@
     terms: "/terms",
     blogPrefix: "/blog/",
     categoryPrefix: "/category/",
+    tagPrefix: "/tag/",
+    authorPrefix: "/author/",
   };
 
   /* Per-page title/description. `title` is the full <title>; `description` is
@@ -168,6 +170,8 @@
 
   const articlePath = slug => `${PATHS.blogPrefix}${encodeURIComponent(slug)}`;
   const categoryPath = slug => `${PATHS.categoryPrefix}${encodeURIComponent(slug)}`;
+  const tagPath = slug => `${PATHS.tagPrefix}${encodeURIComponent(slug)}`;
+  const authorPath = slug => `${PATHS.authorPrefix}${encodeURIComponent(slug)}`;
   const articleUrl = slug => abs(articlePath(slug));
 
   /** Strip protocol and any trailing slash so one page yields one canonical. */
@@ -243,19 +247,33 @@
     section,
     tags,
     imageAlt,
+    // Per-entity overrides an editor can set in the CMS. Each one falls back to
+    // the value above, so a page that sets none behaves exactly as before.
+    canonicalOverride,
+    ogTitle,
+    ogDescription,
+    ogImage,
+    twitterTitle,
+    twitterDescription,
+    twitterImage,
+    robots,
   }) {
     const canonicalPathValue = canonicalPath(url);
-    const canonical = abs(canonicalPathValue);
-    const imageUrl = abs(image || SITE.defaultOgImage);
+    const canonical = abs(canonicalOverride ? canonicalPath(canonicalOverride) : canonicalPathValue);
+    const socialTitle = ogTitle || title;
+    const socialDescription = ogDescription || description;
+    const imageUrl = abs(ogImage || image || SITE.defaultOgImage);
 
     // The canonical link and og:url must never disagree, so they are written
     // together here rather than by each page renderer. setCanonical expects a
-    // path, not an already-absolute URL.
-    setCanonical(canonicalPathValue);
+    // path, not an already-absolute URL. A canonical override may be absolute,
+    // in which case canonicalPath keeps its host but drops the query/hash.
+    setCanonical(canonicalOverride ? canonicalOverride : canonicalPathValue);
+    if (robots) setRobots(robots);
 
     const og = {
-      "og:title": title,
-      "og:description": description,
+      "og:title": socialTitle,
+      "og:description": socialDescription,
       "og:type": type,
       "og:url": canonical,
       "og:image": imageUrl,
@@ -281,9 +299,9 @@
 
     const tw = {
       "twitter:card": card,
-      "twitter:title": title,
-      "twitter:description": description,
-      "twitter:image": imageUrl,
+      "twitter:title": twitterTitle || socialTitle,
+      "twitter:description": twitterDescription || socialDescription,
+      "twitter:image": abs(twitterImage || ogImage || image || SITE.defaultOgImage),
     };
     if (ogAlt) tw["twitter:image:alt"] = ogAlt;
     if (type === "article") {
@@ -529,11 +547,16 @@
     // Prefer the administrator's own meta description, then a page-supplied
     // excerpt, then the title. Never truncated silently beyond the SEO limit.
     const description = clamp(article.meta_description || excerpt || article.excerpt || article.title, 158);
-    const title = `${clamp(article.title, 95)} | ${SITE.name}`;
+    // A hand-written meta title is used verbatim (minus the site suffix the
+    // editor already sees in the SERP preview); otherwise the suffix is added.
+    const title = article.meta_title
+      ? clamp(article.meta_title, 60)
+      : `${clamp(article.title, 95)} | ${SITE.name}`;
+    const robots = `${article.robots_index || "index"}, ${article.robots_follow || "follow"}`;
 
     setTitle(title);
     setDescription(description);
-    setRobots("index, follow");
+    setRobots(robots);
 
     const { canonical } = setSocial({
       title,
@@ -546,6 +569,14 @@
       modifiedTime: article.updated_at || article.published_at || article.created_at,
       section: article.category_name,
       tags: article.tags,
+      canonicalOverride: article.canonical_url,
+      ogTitle: article.og_title,
+      ogDescription: article.og_description,
+      ogImage: article.og_image,
+      twitterTitle: article.twitter_title,
+      twitterDescription: article.twitter_description,
+      twitterImage: article.twitter_image,
+      robots,
     });
 
     const crumbs = breadcrumb || [
@@ -582,11 +613,12 @@
         `The latest ${name} stories published on KaliNova.`,
       158
     );
-    const title = `${name} — ${SITE.name}`;
+    const title = category.meta_title ? clamp(category.meta_title, 60) : `${name} — ${SITE.name}`;
+    const robots = `${category.robots_index || "index"}, ${category.robots_follow || "follow"}`;
 
     setTitle(title);
     setDescription(description);
-    setRobots("index, follow");
+    setRobots(robots);
 
     const { canonical } = setSocial({
       title,
@@ -594,6 +626,14 @@
       url: path,
       image: category.image,
       type: "website",
+      canonicalOverride: category.canonical_url,
+      ogTitle: category.og_title,
+      ogDescription: category.og_description,
+      ogImage: category.og_image,
+      twitterTitle: category.twitter_title,
+      twitterDescription: category.twitter_description,
+      twitterImage: category.twitter_image,
+      robots,
     });
 
     const crumbs = [
@@ -611,6 +651,142 @@
           url: abs(path),
           name,
           description,
+          isPartOf: { "@id": `${SITE.origin}/#website` },
+          mainEntity: {
+            "@type": "ItemList",
+            numberOfItems: articleCount || 0,
+            itemListOrder: "https://schema.org/ItemListOrderDescending",
+          },
+        },
+      ])
+    );
+
+    return { canonical };
+  }
+
+  /** Apply a tag archive page (/tag/<slug>). */
+  function applyTag(tag, articleCount) {
+    if (!tag || !tag.slug) return null;
+
+    const path = tagPath(tag.slug);
+    const name = tag.name || "Tag";
+    const description = clamp(
+      tag.meta_description ||
+        tag.description ||
+        `Stories tagged “${name}” on KaliNova.`,
+      158
+    );
+    const title = tag.meta_title ? clamp(tag.meta_title, 60) : `${name} — ${SITE.name}`;
+    const robots = `${tag.robots_index || "index"}, ${tag.robots_follow || "follow"}`;
+
+    setTitle(title);
+    setDescription(description);
+    setRobots(robots);
+
+    const { canonical } = setSocial({
+      title,
+      description,
+      url: path,
+      type: "website",
+      canonicalOverride: tag.canonical_url,
+      ogTitle: tag.og_title,
+      ogDescription: tag.og_description,
+      ogImage: tag.og_image,
+      twitterTitle: tag.twitter_title,
+      twitterDescription: tag.twitter_description,
+      twitterImage: tag.twitter_image,
+      robots,
+    });
+
+    const crumbs = [
+      { name: "Home", path: PATHS.home },
+      { name: "Stories", path: PATHS.stories },
+      { name, path },
+    ];
+
+    setJsonLd(
+      pageGraph(webPageNode({ path, name, description, type: "CollectionPage", breadcrumb: true }), [
+        breadcrumbNode(crumbs, path),
+        {
+          "@type": "CollectionPage",
+          "@id": `${abs(path)}#collection`,
+          url: abs(path),
+          name,
+          description,
+          isPartOf: { "@id": `${SITE.origin}/#website` },
+          mainEntity: {
+            "@type": "ItemList",
+            numberOfItems: articleCount || 0,
+            itemListOrder: "https://schema.org/ItemListOrderDescending",
+          },
+        },
+      ])
+    );
+
+    return { canonical };
+  }
+
+  /** Apply an author archive page (/author/<slug>). */
+  function applyAuthor(author, articleCount) {
+    if (!author || !author.slug) return null;
+
+    const path = authorPath(author.slug);
+    const name = author.display_name || author.username || "Author";
+    const description = clamp(
+      author.meta_description ||
+        author.bio ||
+        `Stories written by ${name} on KaliNova.`,
+      158
+    );
+    const title = author.meta_title ? clamp(author.meta_title, 60) : `${name} — ${SITE.name}`;
+    const robots = `${author.robots_index || "index"}, ${author.robots_follow || "follow"}`;
+
+    setTitle(title);
+    setDescription(description);
+    setRobots(robots);
+
+    const { canonical } = setSocial({
+      title,
+      description,
+      url: path,
+      image: author.avatar_url,
+      type: "profile",
+      canonicalOverride: author.canonical_url,
+      ogTitle: author.og_title,
+      ogDescription: author.og_description,
+      ogImage: author.og_image,
+      twitterTitle: author.twitter_title,
+      twitterDescription: author.twitter_description,
+      twitterImage: author.twitter_image,
+      robots,
+    });
+
+    const crumbs = [
+      { name: "Home", path: PATHS.home },
+      { name: "Stories", path: PATHS.stories },
+      { name, path },
+    ];
+
+    const person = {
+      "@type": "Person",
+      "@id": `${abs(path)}#person`,
+      name,
+      url: abs(path),
+    };
+    if (author.bio) person.description = author.bio;
+    if (author.avatar_url) person.image = abs(author.avatar_url);
+
+    setJsonLd(
+      pageGraph(webPageNode({ path, name, description, type: "ProfilePage", breadcrumb: true }), [
+        breadcrumbNode(crumbs, path),
+        person,
+        {
+          "@type": "ProfilePage",
+          "@id": `${abs(path)}#profile`,
+          url: abs(path),
+          name: title,
+          description,
+          about: { "@id": `${abs(path)}#person` },
           isPartOf: { "@id": `${SITE.origin}/#website` },
           mainEntity: {
             "@type": "ItemList",
@@ -658,6 +834,8 @@
     articlePath,
     articleUrl,
     categoryPath,
+    tagPath,
+    authorPath,
     canonicalPath,
     clamp,
     setTitle,
@@ -670,6 +848,8 @@
     applyPage,
     applyArticle,
     applyCategory,
+    applyTag,
+    applyAuthor,
     redirectLegacyHash,
   };
 })();

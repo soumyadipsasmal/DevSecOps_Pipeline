@@ -30,6 +30,10 @@
  *                       without one, so subscriptions are stored but no email
  *                       is sent. Setting a value only enables the preflight
  *                       wiring, not sending.
+ *   ENABLE_ANALYTICS    master switch for the optional GA4 loader (default true)
+ *   GA_MEASUREMENT_ID   Google Analytics 4 id (e.g. G-XXXXXXXXXX). Unset means
+ *                       the analytics loader stays dormant and no third-party
+ *                       request is ever made, which is the shipped default.
  */
 
 const crypto = require("crypto");
@@ -203,6 +207,23 @@ function readTileUrl() {
   return raw;
 }
 
+/**
+ * The optional Google Analytics 4 measurement id. GA4 ids look like
+ * "G-XXXXXXXXXX" (uppercase letters and digits, 4-20 of them). Anything else
+ * is ignored with a warning: a typo must not half-enable a third-party request.
+ * When this is empty (the shipped default) the analytics loader is dormant and
+ * no request leaves the reader's browser.
+ */
+function readGaMeasurementId() {
+  const raw = String(process.env.GA_MEASUREMENT_ID || "").trim();
+  if (raw === "") return "";
+  if (!/^G-[A-Z0-9]{4,20}$/.test(raw)) {
+    console.warn("[config] GA_MEASUREMENT_ID is not a valid GA4 id (expected G-XXXXXXXXXX). Analytics stays off.");
+    return "";
+  }
+  return raw;
+}
+
 const siteOrigin = readUrl("SITE_URL", "https://kalinova.in");
 const contactEmail = readContactEmail();
 
@@ -289,6 +310,13 @@ const config = Object.freeze({
   // provider it wires in; neither one switches email sending on by itself.
   newsletterProvider: String(process.env.NEWSLETTER_PROVIDER || "").trim(),
   newsletterFromEmail: String(process.env.NEWSLETTER_FROM_EMAIL || "").trim(),
+
+  // --- Optional analytics ---------------------------------------------------
+  // Off unless an operator sets a real GA4 id. Even then the loader waits for
+  // the reader's advertising consent and honours Do Not Track / Global Privacy
+  // Control, so nothing leaves the browser without a deliberate choice.
+  enableAnalytics: readBoolean("ENABLE_ANALYTICS", true),
+  gaMeasurementId: readGaMeasurementId(),
 
   // --- SEO Engine -----------------------------------------------------------
   // A deterministic, internal content-quality analyzer (docs/seo-engine.md).

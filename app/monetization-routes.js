@@ -33,6 +33,7 @@ const express = require("express");
 
 const adsService = require("./ads-service");
 const affiliate = require("./affiliate-service");
+const config = require("./config");
 const directAds = require("./direct-ads-service");
 const monetization = require("./monetization-service");
 const sponsored = require("./sponsored-service");
@@ -153,6 +154,22 @@ monetizationApi.get("/monetization", async (req, res) => {
       direct_ads: {}
     });
   }
+});
+
+/* ------------------------------------------------------------------ */
+/* Optional analytics                                                   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * GET /api/analytics/config
+ *
+ * The opt-in GA4 loader reads this once. It is same-origin and cacheable, so a
+ * page load never reaches Google unless the operator configured a measurement
+ * id (see monetization-service.getAnalyticsConfig). No secret is returned.
+ */
+monetizationApi.get("/analytics/config", (req, res) => {
+  setSharedCache(res, 300);
+  return res.json(monetization.getAnalyticsConfig());
 });
 
 /* ------------------------------------------------------------------ */

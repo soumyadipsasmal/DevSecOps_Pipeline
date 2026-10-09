@@ -280,8 +280,28 @@ const goodInput = {
 }
 
 {
+  // schema-seo-master.sql widened the editorial workflow to four statuses.
   const result = validation.validateArticle({ ...goodInput, status: "archived" });
-  check("only draft and published are accepted", !result.ok && Boolean(result.errors.status), JSON.stringify(result.errors));
+  check("archived is an accepted status", result.ok && result.values.status === "archived", JSON.stringify(result.errors));
+}
+
+{
+  const result = validation.validateArticle({ ...goodInput, status: "deleted" });
+  check("an unknown status is rejected", !result.ok && Boolean(result.errors.status), JSON.stringify(result.errors));
+}
+
+{
+  // A scheduled article needs a real body and meta description like a published
+  // one, and a moment to go live at.
+  const missing = validation.validateArticle({ ...goodInput, status: "scheduled" });
+  check("scheduling without a date is rejected", !missing.ok && Boolean(missing.errors.scheduled_at), JSON.stringify(missing.errors));
+
+  const ok = validation.validateArticle({
+    ...goodInput,
+    status: "scheduled",
+    scheduled_at: "2027-01-01T09:00:00Z"
+  });
+  check("scheduling with a date is accepted", ok.ok && ok.values.status === "scheduled", JSON.stringify(ok.errors));
 }
 
 {
@@ -570,7 +590,7 @@ section("[3] Slug uniqueness");
   check("the textarea keeps the stored value", formPage.includes("Edit me"));
   check("the banner alt text is populated", formPage.includes("A still from the film"));
   check("the form offers draft and published radios", formPage.includes('value="draft"') && formPage.includes('value="published"'));
-  check("each submit button states its intent", (formPage.match(/name="intent"/g) || []).length === 3);
+  check("each submit button states its intent", (formPage.match(/name="intent"/g) || []).length === 5);
   check("the editor loads its script", formPage.includes("/assets/admin/admin-article-form.js"));
   check("the uploaded image library is offered", formPage.includes('data-insert-image="/assets/uploads/x.png"'));
 
@@ -779,10 +799,12 @@ section("[3] Slug uniqueness");
     check(`${route} only returns published articles`, /status = 'published'/.test(block), route);
   }
 
-  const pageRouteSource = serverSource.slice(serverSource.indexOf("ARTICLE_PAGE_PATTERN"));
+  // The /blog/:slug page moved to seo-master-routes.js when it gained
+  // server-rendered metadata; it must still filter on status there.
+  const pageRouteSource = fs.readFileSync(require.resolve("../seo-master-routes"), "utf8");
   check(
     "the public article page 404s a draft",
-    /status = 'published'/.test(pageRouteSource),
+    /a\.status = 'published'/.test(pageRouteSource),
     "the /blog/:slug existence check does not filter on status"
   );
 

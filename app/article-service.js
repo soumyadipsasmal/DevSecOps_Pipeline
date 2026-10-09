@@ -30,7 +30,20 @@ const ADMIN_COLUMNS = `
     articles.author_id,
     articles.title,
     articles.slug,
+    articles.excerpt,
     articles.meta_description,
+    articles.meta_title,
+    articles.canonical_url,
+    articles.robots_index,
+    articles.robots_follow,
+    articles.og_title,
+    articles.og_description,
+    articles.og_image,
+    articles.twitter_title,
+    articles.twitter_description,
+    articles.twitter_image,
+    articles.schema_type,
+    articles.focus_keyword,
     articles.content,
     articles.body_format,
     articles.cover_image,
@@ -40,6 +53,7 @@ const ADMIN_COLUMNS = `
     articles.is_trending,
     articles.status,
     articles.ads_enabled,
+    articles.scheduled_at,
     articles.published_at,
     articles.created_at,
     articles.updated_at,
@@ -178,9 +192,12 @@ async function listArticles(query = {}) {
   ]);
 
   const total = totals.rows[0] ? totals.rows[0].total : 0;
-  const byStatus = { draft: 0, published: 0 };
+  // Zeroed so the filter tabs always render a number, even for a status that
+  // currently has no rows (e.g. scheduled).
+  const byStatus = {};
+  for (const status of STATUSES) byStatus[status] = 0;
   for (const row of counts.rows) {
-    if (row.status === STATUS_DRAFT || row.status === STATUS_PUBLISHED) {
+    if (Object.prototype.hasOwnProperty.call(byStatus, row.status)) {
       byStatus[row.status] = row.count;
     }
   }
@@ -236,22 +253,41 @@ async function createArticle(values) {
 
   const { rows } = await pool.query(
     `INSERT INTO articles
-       (author_id, title, slug, meta_description, content, body_format, cover_image,
-        banner_alt, category_id, status, ads_enabled, published_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::text, $11, CASE WHEN $10::text = 'published' THEN NOW() ELSE NULL END)
+       (author_id, title, slug, excerpt, meta_description, meta_title, canonical_url,
+        robots_index, robots_follow, og_title, og_description, og_image,
+        twitter_title, twitter_description, twitter_image, schema_type, focus_keyword,
+        content, body_format, cover_image, banner_alt, category_id, status, ads_enabled,
+        scheduled_at, published_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17,
+             $18, $19, $20, $21, $22, $23::text, $24, $25,
+             CASE WHEN $23::text = 'published' THEN NOW() ELSE NULL END)
      RETURNING id`,
     [
       authorId,
       values.title,
       slug,
+      values.excerpt,
       values.metaDescription,
+      values.metaTitle,
+      values.canonicalUrl,
+      values.robotsIndex,
+      values.robotsFollow,
+      values.ogTitle,
+      values.ogDescription,
+      values.ogImage,
+      values.twitterTitle,
+      values.twitterDescription,
+      values.twitterImage,
+      values.schemaType,
+      values.focusKeyword,
       values.bodyHtml,
       values.bodyFormat,
       values.coverImage,
       values.bannerAlt,
       values.categoryId,
       values.status,
-      values.adsEnabled === undefined ? null : values.adsEnabled
+      values.adsEnabled === undefined ? null : values.adsEnabled,
+      values.scheduledAt
     ]
   );
 
@@ -278,16 +314,30 @@ async function updateArticle(id, values) {
     `UPDATE articles
         SET title = $2,
             slug = $3,
-            meta_description = $4,
-            content = $5,
-            body_format = $6,
-            cover_image = $7,
-            banner_alt = $8,
-            category_id = $9,
-            status = $10::text,
-            ads_enabled = $11,
+            excerpt = $4,
+            meta_description = $5,
+            meta_title = $6,
+            canonical_url = $7,
+            robots_index = $8,
+            robots_follow = $9,
+            og_title = $10,
+            og_description = $11,
+            og_image = $12,
+            twitter_title = $13,
+            twitter_description = $14,
+            twitter_image = $15,
+            schema_type = $16,
+            focus_keyword = $17,
+            content = $18,
+            body_format = $19,
+            cover_image = $20,
+            banner_alt = $21,
+            category_id = $22,
+            status = $23::text,
+            ads_enabled = $24,
+            scheduled_at = $25,
             published_at = CASE
-              WHEN $10::text = 'published' THEN COALESCE(published_at, NOW())
+              WHEN $23::text = 'published' THEN COALESCE(published_at, NOW())
               ELSE published_at
             END
       WHERE id = $1
@@ -296,14 +346,28 @@ async function updateArticle(id, values) {
       parsed,
       values.title,
       slug,
+      values.excerpt,
       values.metaDescription,
+      values.metaTitle,
+      values.canonicalUrl,
+      values.robotsIndex,
+      values.robotsFollow,
+      values.ogTitle,
+      values.ogDescription,
+      values.ogImage,
+      values.twitterTitle,
+      values.twitterDescription,
+      values.twitterImage,
+      values.schemaType,
+      values.focusKeyword,
       values.bodyHtml,
       values.bodyFormat,
       values.coverImage,
       values.bannerAlt,
       values.categoryId,
       values.status,
-      values.adsEnabled === undefined ? null : values.adsEnabled
+      values.adsEnabled === undefined ? null : values.adsEnabled,
+      values.scheduledAt
     ]
   );
 
@@ -345,6 +409,38 @@ async function setStatus(id, status) {
 
   if (rows.length === 0) return null;
   return getArticleForAdmin(parsed);
+}
+
+/**
+ * Promote every scheduled article whose moment has arrived.
+ *
+ * A scheduled article is a published article waiting for its clock. This is the
+ * only writer of that transition: it is called on boot and on an interval by
+ * server.js, and it is safe to run concurrently — the WHERE clause guarantees a
+ * row is promoted once, and the timestamp trigger refreshes updated_at.
+ *
+ * @returns {Promise<Array<{id:number, slug:string, title:string}>>} rows promoted
+ */
+async function publishDueScheduled(limit = 50) {
+  const capped = Math.min(Math.max(Number(limit) || 50, 1), 500);
+
+  const { rows } = await pool.query(
+    `UPDATE articles
+        SET status = 'published',
+            published_at = COALESCE(published_at, NOW())
+      WHERE id IN (
+        SELECT id FROM articles
+         WHERE status = 'scheduled'
+           AND scheduled_at IS NOT NULL
+           AND scheduled_at <= NOW()
+         ORDER BY scheduled_at ASC
+         LIMIT $1
+      )
+      RETURNING id, slug, title`,
+    [capped]
+  );
+
+  return rows;
 }
 
 /**
@@ -411,6 +507,7 @@ module.exports = {
   listArticles,
   listCategories,
   listRecent,
+  publishDueScheduled,
   resolveSlug,
   setStatus,
   updateArticle

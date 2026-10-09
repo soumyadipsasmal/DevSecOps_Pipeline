@@ -459,11 +459,21 @@ check("the ads suite is wired into npm test", /ads-test\.js/.test(packageJson.sc
 
 section("CSP");
 
-// The shipped policy stays closed. What matters is that the file says what to
-// add and when, rather than being widened in advance for an ad network that is
-// not being used.
-check("the public CSP is not widened for Google", !/Content-Security-Policy:[^"]*googlesyndication/.test(headersSource));
-check("the public CSP still allows only same-origin scripts", /script-src 'self';/.test(headersSource));
+// The shipped policy stays closed for advertising. What matters is that the
+// file says what to add and when, rather than being widened in advance for an
+// ad network that is not being used. The only third-party script host allowed
+// is the opt-in analytics loader (consent-gated, off by default).
+const publicCspLine =
+  headersSource
+    .split(/\r?\n/)
+    .find(line => line.trim().startsWith("Content-Security-Policy:")) || "";
+
+check("the public CSP is not widened for Google ads", !/googlesyndication/.test(publicCspLine));
+check("the public CSP still allows same-origin scripts", /script-src 'self'/.test(publicCspLine));
+check(
+  "the public CSP allows no ad-network script host",
+  !/script-src[^;]*(googlesyndication|doubleclick)/.test(publicCspLine)
+);
 check("the CSP file documents that ads are not enabled", /ADS \/ ADSENSE ARE NOT YET ENABLED/.test(headersSource));
 check("the CSP file lists the script hosts to add later", /script-src  \+= https:\/\/pagead2\.googlesyndication\.com/.test(headersSource));
 check("the CSP file warns against unsafe-inline", /do not add 'unsafe-inline'/.test(headersSource));

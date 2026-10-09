@@ -424,7 +424,10 @@ check("the research endpoints sit before the admin 404", /researchRoutes\.regist
 
 const articleRoutesSource = fs.readFileSync(require.resolve("../admin-article-routes"), "utf8");
 check("a draft save never asks for an acknowledgement", /pendingSimilarityWarning/.test(articleRoutesSource));
-check("the acknowledgement is only checked for published status", /resolveStatus\(body\) !== STATUS_PUBLISHED\) return null/.test(articleRoutesSource));
+check(
+  "the acknowledgement is only checked for publishing statuses",
+  /status !== STATUS_PUBLISHED && status !== STATUS_SCHEDULED\) return null/.test(articleRoutesSource)
+);
 check("sources are validated before an article is written", articleRoutesSource.indexOf("readEditorial(req.body)") < articleRoutesSource.indexOf("articleService.createArticle"));
 
 /* ==================================================================== */

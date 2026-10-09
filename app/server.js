@@ -10,6 +10,8 @@ const security = require("./security");
 const { adminApi, adminPages } = require("./admin-routes");
 const { externalApi } = require("./external-routes");
 const redirects = require("./redirect-service");
+const tagService = require("./tag-service");
+const { seoRouter, seoPageRouter } = require("./seo-master-routes");
 
 const app = express();
 const PORT = process.env.PORT || config.port;
@@ -43,6 +45,13 @@ app.use((req, res, next) => {
     res.set("Referrer-Policy", "strict-origin-when-cross-origin");
     next();
 });
+
+// Dynamic SEO surface first: /sitemap.xml, its child sitemaps, /robots.txt and
+// the read-only /api/search, /api/tags and /api/authors endpoints. Registering
+// this ahead of the static handler lets the generated sitemap and robots win
+// over the frontend/sitemap.xml and frontend/robots.txt files of the same name
+// that express.static would otherwise serve.
+app.use(seoRouter);
 
 // Serve frontend
 app.use(express.static(path.join(__dirname, "../frontend")));
@@ -240,10 +249,22 @@ app.get("/api/articles", async (req, res) => {
                 articles.slug,
                 articles.content,
                 articles.body_format,
-                LEFT(articles.content, 200) AS excerpt,
+                COALESCE(articles.excerpt, LEFT(articles.content, 200)) AS excerpt,
+                articles.meta_title,
                 articles.meta_description,
+                articles.canonical_url,
+                articles.robots_index,
+                articles.robots_follow,
                 articles.cover_image,
                 articles.banner_alt,
+                articles.og_title,
+                articles.og_description,
+                articles.og_image,
+                articles.twitter_title,
+                articles.twitter_description,
+                articles.twitter_image,
+                articles.schema_type,
+                articles.focus_keyword,
                 articles.is_featured,
                 articles.is_trending,
                 articles.status,
@@ -252,6 +273,7 @@ app.get("/api/articles", async (req, res) => {
                 articles.updated_at,
                 users.id AS author_id,
                 users.username AS author_username,
+                users.slug AS author_slug,
                 users.avatar_url AS author_avatar,
                 users.bio AS author_bio,
                 categories.name AS category_name,
@@ -301,9 +323,22 @@ const ARTICLE_COLUMNS = `
     articles.slug,
     articles.content,
     articles.body_format,
+    COALESCE(articles.excerpt, LEFT(articles.content, 200)) AS excerpt,
+    articles.meta_title,
     articles.meta_description,
+    articles.canonical_url,
+    articles.robots_index,
+    articles.robots_follow,
     articles.cover_image,
     articles.banner_alt,
+    articles.og_title,
+    articles.og_description,
+    articles.og_image,
+    articles.twitter_title,
+    articles.twitter_description,
+    articles.twitter_image,
+    articles.schema_type,
+    articles.focus_keyword,
     articles.is_featured,
     articles.is_trending,
     articles.status,
@@ -312,6 +347,7 @@ const ARTICLE_COLUMNS = `
     articles.updated_at,
     users.id AS author_id,
     users.username AS author_username,
+    users.slug AS author_slug,
     users.avatar_url AS author_avatar,
     users.bio AS author_bio,
     categories.name AS category_name,
@@ -341,7 +377,9 @@ app.get("/api/articles/:id", async (req, res) => {
             return res.status(404).json(ARTICLE_NOT_FOUND);
         }
 
-        res.json(result.rows[0]);
+        const article = result.rows[0];
+        const tags = await tagService.getTagsForArticle(article.id);
+        res.json({ ...article, tags: tags.map(tag => tag.name) });
 
     } catch (error) {
         console.error("Get article error:", error);
@@ -369,7 +407,9 @@ app.get("/api/articles/slug/:slug", async (req, res) => {
             return res.status(404).json(ARTICLE_NOT_FOUND);
         }
 
-        res.json(result.rows[0]);
+        const article = result.rows[0];
+        const tags = await tagService.getTagsForArticle(article.id);
+        res.json({ ...article, tags: tags.map(tag => tag.name) });
 
     } catch (error) {
         console.error("Get article by slug error:", error);
@@ -515,46 +555,21 @@ app.get("/api/ads", async (req, res) => {
 // That script owns the URL list, so this file and the static XML cannot drift.
 
 // ===============================
-// PUBLIC ARTICLE PAGES
+// PUBLIC CONTENT PAGES
 // ===============================
-// /blog/<slug> is a real page, not a client-side guess, so a slug that does not
-// exist — or belongs to a draft — has to answer 404 with the styled page instead
-// of a 200 shell that would let a crawler index an empty document.
+// /blog/<slug>, /stories/<slug>, /category/<slug>, /tag/<slug> and
+// /author/<slug> are real pages, not client-side guesses. seoPageRouter checks
+// that the entity exists and is public, then answers with the SPA shell carrying
+// server-rendered title/description/canonical/robots/social tags and JSON-LD, so
+// a crawler that does not run JavaScript still sees the right metadata. A slug
+// that does not exist — or belongs to a draft — answers 404 with the styled page
+// instead of a 200 shell that would let a crawler index an empty document.
 //
-// If the database is unreachable the shell is served instead, because a working
-// site matters more than the status code of one URL during an outage.
-
-const ARTICLE_PAGE_PATTERN = /^\/(?:blog|stories)\/([^/]+)\/?$/;
-
-app.get(ARTICLE_PAGE_PATTERN, async (req, res, next) => {
-    const identifier = String(req.params[0] || "").slice(0, 255);
-    if (!identifier) return next();
-
-    try {
-        const numericId = /^[0-9]{1,9}$/.test(identifier) ? Number.parseInt(identifier, 10) : null;
-        const result = numericId
-            ? await pool.query(
-                "SELECT 1 FROM articles WHERE status = 'published' AND (id = $1 OR slug = $2) LIMIT 1",
-                [numericId, identifier]
-            )
-            : await pool.query(
-                "SELECT 1 FROM articles WHERE status = 'published' AND slug = $1 LIMIT 1",
-                [identifier]
-            );
-
-        if (result.rows.length > 0) {
-            return res.sendFile(path.join(__dirname, "../frontend/index.html"));
-        }
-
-        res.set("X-Robots-Tag", "noindex, follow");
-        return res.status(404).sendFile(path.join(__dirname, "../frontend/404.html"), err => {
-            if (err) next(err);
-        });
-    } catch (error) {
-        // Database trouble must not take the public site down.
-        return next();
-    }
-});
+// Registered after the redirect middleware (so a retired slug still forwards)
+// and before the SPA fallback. If the database is unreachable the router calls
+// next() and the fallback serves the shell, because a working site matters more
+// than the status code of one URL during an outage.
+app.use(seoPageRouter);
 
 // ===============================
 // SPA FALLBACK
@@ -578,6 +593,11 @@ const SPA_ROUTES = [
     /^\/privacy$/,
     /^\/terms$/,
     /^\/category\/[^/]+$/,
+    // Tag and author archives are server-rendered by seoPageRouter; they are
+    // listed here too so a database outage still serves the shell rather than a
+    // 404 for a page that exists.
+    /^\/tag\/[^/]+$/,
+    /^\/author\/[^/]+$/,
     // The blog listing is /blog; /stories is its older alias. Both render the
     // same page, so both must reach the shell rather than the 404.
     /^\/blog\/?$/,
@@ -653,9 +673,11 @@ if (require.main === module) {
         const circuit = require("./circuit-breaker");
         const mapHealth = require("./map-health");
         const licenseAudit = require("./license-audit");
+        const scheduledPublisher = require("./scheduled-publisher");
         circuit.startSweeper();
         mapHealth.start();
         licenseAudit.start();
+        scheduledPublisher.start();
     } catch (error) {
         console.error("Failed to start background safety jobs:", error.message);
     }

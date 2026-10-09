@@ -113,8 +113,33 @@ seeded with honest defaults, and never fabricated.
   configured.
 - **No claiming of approvals.** The dashboard stores an AdSense publisher ID
   if one is entered but never claims AdSense approval or legal compliance.
-- **No external tracking pixels.** The only outbound URLs ever rendered are the
-  affiliate destinations and direct-ad destinations an administrator stored.
+- **No external tracking by default.** On the shipped build the only outbound
+  URLs ever rendered are the affiliate destinations and direct-ad destinations
+  an administrator stored. The opt-in GA4 loader described below is the one
+  exception, and it stays dormant until an operator configures it *and* the
+  reader consents.
+
+## Optional analytics (GA4)
+
+KaliNova ships with analytics **off**. No measurement id is configured, so
+`frontend/assets/analytics.js` reads `/api/analytics/config`, sees
+`enabled: false`, and makes no third-party request at all.
+
+When an operator sets `GA_MEASUREMENT_ID` (a valid GA4 id, e.g.
+`G-XXXXXXXXXX`) and leaves `ENABLE_ANALYTICS=true`, the loader still refuses to
+reach Google until **both** of these hold:
+
+- the reader is not sending Do Not Track or Global Privacy Control, and
+- the reader has granted advertising consent through the existing banner (the
+  same `kalinova:ads-consent` choice `ads.js` stores). Consent can be granted
+  after the first attempt; the loader then starts without a reload.
+
+Only then does it inject `gtag.js`, with `anonymize_ip: true` and
+`send_page_view: false`. Pageviews are emitted per SPA route (one per path,
+driven by the router's `kal:route` event), so navigation is measured without
+double-counting. The public CSP in `frontend/_headers` already allows the
+required `googletagmanager` / `google-analytics` origins; they are inert until
+the loader actually runs.
 
 ## Environment
 
@@ -123,6 +148,8 @@ All optional, none switch advertising on:
 | Variable               | Purpose                                                  |
 | ---------------------- | -------------------------------------------------------- |
 | `ANALYTICS_SALT`       | HMAC secret for client-address hashing                   |
+| `ENABLE_ANALYTICS`     | master switch for the opt-in GA4 loader (default true)   |
+| `GA_MEASUREMENT_ID`    | GA4 id; unset keeps analytics off (the shipped default)  |
 | `NEWSLETTER_PROVIDER`  | reserved; no sending is enabled by this build            |
 | `NEWSLETTER_FROM_EMAIL`| reserved sender address for a future provider            |
 

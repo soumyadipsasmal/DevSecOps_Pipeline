@@ -405,6 +405,29 @@ async function subscriberCounts() {
 }
 
 /* ==================================================================== */
+/* Optional analytics                                                   */
+/* ==================================================================== */
+
+/**
+ * The public configuration for the opt-in GA4 loader.
+ *
+ * The measurement id is public (it is visible in the page source of every GA
+ * site), so returning it leaks nothing. It is only returned when the master
+ * switch is on and a valid id is configured; otherwise the loader gets
+ * `enabled: false` and never makes a third-party request. `consent_required`
+ * is always true: the browser must have the reader's advertising consent and
+ * must not send Do Not Track / Global Privacy Control before anything loads.
+ */
+function getAnalyticsConfig() {
+  const enabled = config.enableAnalytics === true && config.gaMeasurementId !== "";
+  return {
+    enabled,
+    measurement_id: enabled ? config.gaMeasurementId : "",
+    consent_required: true
+  };
+}
+
+/* ==================================================================== */
 /* Overview                                                             */
 /* ==================================================================== */
 
@@ -500,6 +523,7 @@ module.exports = {
   asString,
   classifyDevice,
   createToken,
+  getAnalyticsConfig,
   getDisclosures,
   getOverview,
   listAudit,

@@ -23,10 +23,20 @@ const {
 
 const {
   BANNER_ALT_MAX,
+  EXCERPT_MAX,
+  FOCUS_KEYWORD_MAX,
   META_DESCRIPTION_MAX,
   META_DESCRIPTION_MIN,
+  META_TITLE_MAX,
+  OG_DESCRIPTION_MAX,
+  ROBOTS_FOLLOW_VALUES,
+  ROBOTS_INDEX_VALUES,
+  SCHEMA_TYPES,
+  STATUSES,
+  STATUS_ARCHIVED,
   STATUS_DRAFT,
   STATUS_PUBLISHED,
+  STATUS_SCHEDULED,
   TITLE_MAX
 } = require("./article-validation");
 
@@ -51,6 +61,20 @@ const EDITORIAL_POLICY_NOTICE =
 /** Turn a raw input value into an escaped value="..." attribute. */
 function fieldValue(value) {
   return value === null || value === undefined ? "" : escapeHtml(value);
+}
+
+/**
+ * Format a timestamp for an <input type="datetime-local">. The browser reads
+ * local wall-clock time, so the stored UTC value is converted to local before
+ * it is shown; an unparseable value renders empty rather than "Invalid Date".
+ */
+function dateTimeLocalValue(value) {
+  if (!value) return "";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const pad = number => String(number).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 function errorList(errors) {
@@ -163,7 +187,9 @@ function renderArticleList({ admin, csrfToken, result, filters, categories, noti
   <nav class="admin-tabs" aria-label="Filter by status">
     ${tab("All", "")}
     ${tab("Published", STATUS_PUBLISHED)}
+    ${tab("Scheduled", STATUS_SCHEDULED)}
     ${tab("Drafts", STATUS_DRAFT)}
+    ${tab("Archived", STATUS_ARCHIVED)}
   </nav>
 
   <form class="admin-filters" method="get" action="/admin/articles" role="search">
@@ -311,7 +337,10 @@ function renderArticleForm({
 } = {}) {
   const isEdit = Boolean(article);
   const action = isEdit ? `/admin/articles/${escapeHtml(article.id)}` : "/admin/articles";
-  const mode = values.status === STATUS_PUBLISHED ? STATUS_PUBLISHED : STATUS_DRAFT;
+  const submittedStatus = String(values.status ?? (article ? article.status : STATUS_DRAFT) ?? STATUS_DRAFT)
+    .trim()
+    .toLowerCase();
+  const mode = STATUSES.includes(submittedStatus) ? submittedStatus : STATUS_DRAFT;
 
   // Advertising choice echoed back from a validation re-render, else from the
   // stored row. The row stores a nullable boolean; the form stores a 3-way
@@ -337,6 +366,36 @@ function renderArticleForm({
   // disabled; the rich surface is created from it by admin-article-form.js.
   const body = String(values.content ?? article?.content ?? "");
   const words = countWords(body);
+
+  /* ---- SEO / social / scheduling values ----------------------------- */
+  const excerpt = fieldValue(values.excerpt ?? article?.excerpt ?? "");
+  const metaTitle = fieldValue(values.meta_title ?? article?.meta_title ?? "");
+  const canonicalUrl = fieldValue(values.canonical_url ?? article?.canonical_url ?? "");
+  const robotsIndex = String(values.robots_index ?? article?.robots_index ?? "index");
+  const robotsFollow = String(values.robots_follow ?? article?.robots_follow ?? "follow");
+  const schemaType = String(values.schema_type ?? article?.schema_type ?? "BlogPosting");
+  const focusKeyword = fieldValue(values.focus_keyword ?? article?.focus_keyword ?? "");
+  const tagList = fieldValue(values.tags ?? "");
+  const ogTitle = fieldValue(values.og_title ?? article?.og_title ?? "");
+  const ogDescription = fieldValue(values.og_description ?? article?.og_description ?? "");
+  const ogImage = fieldValue(values.og_image ?? article?.og_image ?? "");
+  const twitterTitle = fieldValue(values.twitter_title ?? article?.twitter_title ?? "");
+  const twitterDescription = fieldValue(values.twitter_description ?? article?.twitter_description ?? "");
+  const twitterImage = fieldValue(values.twitter_image ?? article?.twitter_image ?? "");
+  const scheduledAt =
+    values.scheduled_at !== undefined && values.scheduled_at !== null
+      ? fieldValue(values.scheduled_at)
+      : fieldValue(dateTimeLocalValue(article?.scheduled_at));
+
+  const robotsIndexOptions = ROBOTS_INDEX_VALUES
+    .map(value => `<option value="${escapeHtml(value)}"${robotsIndex === value ? " selected" : ""}>${escapeHtml(value)}</option>`)
+    .join("");
+  const robotsFollowOptions = ROBOTS_FOLLOW_VALUES
+    .map(value => `<option value="${escapeHtml(value)}"${robotsFollow === value ? " selected" : ""}>${escapeHtml(value)}</option>`)
+    .join("");
+  const schemaTypeOptions = SCHEMA_TYPES
+    .map(value => `<option value="${escapeHtml(value)}"${schemaType === value ? " selected" : ""}>${escapeHtml(value)}</option>`)
+    .join("");
 
   const noticeBlock = notice
     ? `<p class="admin-alert admin-alert--info" role="status">${escapeHtml(notice)}</p>`
@@ -638,6 +697,113 @@ function renderArticleForm({
       </div>
     </section>
 
+    <section class="admin-card admin-seo-panel" aria-labelledby="section-metadata">
+      <h2 class="admin-card-title" id="section-metadata">Search &amp; social metadata</h2>
+      <p class="admin-field-help">
+        Every field here is optional: a blank value falls back to the article's own title, excerpt,
+        meta description and banner. Fill one in only when the search result or the social card should
+        read differently from the article itself.
+      </p>
+
+      <div class="admin-field">
+        <label for="article-excerpt">Excerpt / standfirst</label>
+        <textarea id="article-excerpt" name="excerpt" rows="2" maxlength="${EXCERPT_MAX}"
+                  placeholder="One or two sentences shown under the headline.">${excerpt}</textarea>
+        <p class="admin-field-help">Used beneath the headline and as the fallback social description.</p>
+        ${fieldError(errors, "excerpt")}
+      </div>
+
+      <div class="admin-field">
+        <label for="article-meta-title">Meta title</label>
+        <input type="text" id="article-meta-title" name="meta_title" value="${metaTitle}" maxlength="${META_TITLE_MAX}"
+               placeholder="Leave blank to use the article title">
+        <p class="admin-field-help">The <code>&lt;title&gt;</code> and the blue link in search results. Roughly ${META_TITLE_MAX} characters is the practical ceiling.</p>
+        ${fieldError(errors, "meta_title")}
+      </div>
+
+      <div class="admin-field">
+        <label for="article-canonical">Canonical URL override</label>
+        <input type="url" id="article-canonical" name="canonical_url" value="${canonicalUrl}" maxlength="2000"
+               placeholder="https://… or /blog/…">
+        <p class="admin-field-help">Set this only when the article was first published elsewhere and points here as the original.</p>
+        ${fieldError(errors, "canonical_url")}
+      </div>
+
+      <div class="admin-field">
+        <label for="article-focus-keyword">Focus keyword</label>
+        <input type="text" id="article-focus-keyword" name="focus_keyword" value="${focusKeyword}" maxlength="${FOCUS_KEYWORD_MAX}"
+               placeholder="The one phrase this article should rank for">
+        <p class="admin-field-help">Used by the SEO check above. Optional: without it the checker picks the most frequent term.</p>
+        ${fieldError(errors, "focus_keyword")}
+      </div>
+
+      <div class="admin-field">
+        <label for="article-tags">Tags</label>
+        <input type="text" id="article-tags" name="tags" value="${tagList}"
+               placeholder="cinema, wildlife, travel">
+        <p class="admin-field-help">Comma-separated keywords. Each one gets a /tag/&lt;slug&gt; page and feeds the search facets.</p>
+        ${fieldError(errors, "tags")}
+      </div>
+
+      <div class="admin-field">
+        <label for="article-schema-type">Structured data type</label>
+        <select id="article-schema-type" name="schema_type">${schemaTypeOptions}</select>
+        <p class="admin-field-help">The Schema.org type emitted in the article's JSON-LD. BlogPosting is the right default.</p>
+        ${fieldError(errors, "schema_type")}
+      </div>
+
+      <h3 class="admin-card-title admin-card-title--sub">Indexing</h3>
+      <div class="admin-seo-inline">
+        <div class="admin-field">
+          <label for="article-robots-index">Search engines</label>
+          <select id="article-robots-index" name="robots_index">${robotsIndexOptions}</select>
+          ${fieldError(errors, "robots_index")}
+        </div>
+        <div class="admin-field">
+          <label for="article-robots-follow">Follow links</label>
+          <select id="article-robots-follow" name="robots_follow">${robotsFollowOptions}</select>
+          ${fieldError(errors, "robots_follow")}
+        </div>
+      </div>
+      <p class="admin-field-help"><code>noindex</code> keeps the article off search results; <code>nofollow</code> asks crawlers not to follow its outbound links.</p>
+
+      <details class="admin-seo-social">
+        <summary>Open Graph and Twitter / X overrides</summary>
+        <p class="admin-field-help">Each field falls back to the article's title, excerpt and banner when left blank.</p>
+
+        <div class="admin-field">
+          <label for="article-og-title">Open Graph title</label>
+          <input type="text" id="article-og-title" name="og_title" value="${ogTitle}" maxlength="${META_TITLE_MAX}">
+          ${fieldError(errors, "og_title")}
+        </div>
+        <div class="admin-field">
+          <label for="article-og-description">Open Graph description</label>
+          <textarea id="article-og-description" name="og_description" rows="2" maxlength="${OG_DESCRIPTION_MAX}">${ogDescription}</textarea>
+          ${fieldError(errors, "og_description")}
+        </div>
+        <div class="admin-field">
+          <label for="article-og-image">Open Graph image</label>
+          <input type="text" id="article-og-image" name="og_image" value="${ogImage}" maxlength="1000" placeholder="/assets/uploads/… or https://…">
+          ${fieldError(errors, "og_image")}
+        </div>
+        <div class="admin-field">
+          <label for="article-twitter-title">Twitter title</label>
+          <input type="text" id="article-twitter-title" name="twitter_title" value="${twitterTitle}" maxlength="${META_TITLE_MAX}">
+          ${fieldError(errors, "twitter_title")}
+        </div>
+        <div class="admin-field">
+          <label for="article-twitter-description">Twitter description</label>
+          <textarea id="article-twitter-description" name="twitter_description" rows="2" maxlength="${OG_DESCRIPTION_MAX}">${twitterDescription}</textarea>
+          ${fieldError(errors, "twitter_description")}
+        </div>
+        <div class="admin-field">
+          <label for="article-twitter-image">Twitter image</label>
+          <input type="text" id="article-twitter-image" name="twitter_image" value="${twitterImage}" maxlength="1000" placeholder="/assets/uploads/… or https://…">
+          ${fieldError(errors, "twitter_image")}
+        </div>
+      </details>
+    </section>
+
     <section class="admin-card admin-seo-panel" aria-labelledby="section-seo">
       <h2 class="admin-card-title" id="section-seo">SEO check</h2>
       <p class="admin-field-help">
@@ -664,17 +830,34 @@ function renderArticleForm({
           <span><strong>Draft</strong><br><span class="admin-field-help">Private. Not on the site, in the API or the sitemap.</span></span>
         </label>
         <label class="admin-radio">
+          <input type="radio" name="status" value="scheduled"${mode === STATUS_SCHEDULED ? " checked" : ""}>
+          <span><strong>Scheduled</strong><br><span class="admin-field-help">Goes live automatically at the date and time below.</span></span>
+        </label>
+        <label class="admin-radio">
           <input type="radio" name="status" value="published"${mode === STATUS_PUBLISHED ? " checked" : ""}>
-          <span><strong>Published</strong><br><span class="admin-field-help">Visible on the site and included in the sitemap after <code>npm run sitemap</code>.</span></span>
+          <span><strong>Published</strong><br><span class="admin-field-help">Visible on the site and in the dynamic sitemap.</span></span>
+        </label>
+        <label class="admin-radio">
+          <input type="radio" name="status" value="archived"${mode === STATUS_ARCHIVED ? " checked" : ""}>
+          <span><strong>Archived</strong><br><span class="admin-field-help">Kept for the record but off the site and out of the sitemap.</span></span>
         </label>
       </fieldset>
       ${fieldError(errors, "status")}
+
+      <div class="admin-field">
+        <label for="article-scheduled-at">Publish at <span class="admin-field-help">(used when the status is Scheduled)</span></label>
+        <input type="datetime-local" id="article-scheduled-at" name="scheduled_at" value="${scheduledAt}">
+        <p class="admin-field-help">The article is promoted to Published once this moment passes; nothing needs to be clicked.</p>
+        ${fieldError(errors, "scheduled_at")}
+      </div>
       ${similarityWarning}
       ${similarityHint}
 
       <div class="admin-form-actions">
         <button type="submit" name="intent" value="publish" class="admin-button admin-button--primary">${isEdit ? "Save &amp; publish" : "Publish"}</button>
+        <button type="submit" name="intent" value="schedule" class="admin-button">Schedule</button>
         <button type="submit" name="intent" value="draft" class="admin-button">${isEdit ? "Save as draft" : "Save draft"}</button>
+        <button type="submit" name="intent" value="archive" class="admin-button admin-button--ghost">Archive</button>
         <button type="submit" name="intent" value="preview" class="admin-button admin-button--ghost">Preview</button>
         <a class="admin-button admin-button--ghost" href="/admin/articles">Cancel</a>
       </div>

@@ -27,6 +27,19 @@
  *                                    URLs. One additive table; the SEO engine
  *                                    itself computes its report on demand and
  *                                    stores nothing.
+ *   database/schema-seo-master.sql   SEO master data: per-entity metadata for
+ *                                    articles, categories and authors (meta
+ *                                    title/description, canonical, robots,
+ *                                    Open Graph, Twitter cards, JSON-LD type),
+ *                                    article excerpt/focus keyword/schedule,
+ *                                    and the widened article status model
+ *                                    (draft/published/scheduled/archived).
+ *                                    Additive columns + indexes only.
+ *   database/schema-seo-content.sql  SEO content taxonomy: the `tags` table and
+ *                                    the `article_tags` join, giving articles
+ *                                    keyword metadata and powering /tag/<slug>
+ *                                    landing pages and search facets. Two new
+ *                                    tables; nothing existing is touched.
  *
  * The project has no migration framework; the same files are mounted into
  * docker-entrypoint-initdb.d for a fresh volume, and every statement in them is
@@ -81,7 +94,18 @@ const MIGRATIONS = [
   // deterministic analyzer that computes its report on demand and persists
   // nothing (see docs/seo-engine.md). Registered after the monetization file
   // so the ordering the earlier suites assert on stays untouched.
-  { file: "schema-seo-engine.sql", check: { table: "redirects", columns: ["source_path", "destination_path", "status_code", "is_active"] } }
+  { file: "schema-seo-engine.sql", check: { table: "redirects", columns: ["source_path", "destination_path", "status_code", "is_active"] } },
+  // SEO master data (Phase 6): the per-entity SEO columns the metadata pipeline
+  // reads (articles/categories/users), the article scheduling column and the
+  // widened article status model. Additive columns, CHECKs and one index; the
+  // only data write is a NULL-only backfill of author slugs. Registered after
+  // every earlier file so the ordering the other suites assert on is unchanged.
+  { file: "schema-seo-master.sql", check: { table: "articles", columns: ["excerpt", "meta_title", "canonical_url", "robots_index", "robots_follow", "og_image", "twitter_image", "schema_type", "focus_keyword", "scheduled_at"] } },
+  // SEO content taxonomy (Phase 7): two brand-new tables - tags and the
+  // article_tags join - backing the /tag/<slug> landing pages, article
+  // keyword metadata and the search facets. Additive and guarded, registered
+  // last so the ordering the earlier suites assert on is unchanged.
+  { file: "schema-seo-content.sql", check: { table: "tags", columns: ["name", "slug", "description", "meta_title", "robots_index"] } }
 ];
 
 async function applyMigration(migration) {

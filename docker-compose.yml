@@ -130,6 +130,14 @@ services:
       # SEO engine & redirects. One new table for slug-change/retired URLs; it
       # starts empty. Nothing in the schema touches an existing table.
       - ./database/schema-seo-engine.sql:/docker-entrypoint-initdb.d/15-seo-engine.sql:ro
+      # SEO master data. Additive columns for per-entity metadata (articles,
+      # categories, authors), article excerpt/focus keyword/scheduling, and the
+      # widened draft/published/scheduled/archived status model. Nothing is
+      # dropped or re-seeded; existing rows keep their current behaviour.
+      - ./database/schema-seo-master.sql:/docker-entrypoint-initdb.d/16-seo-master.sql:ro
+      # SEO content taxonomy. Two new tables (tags, article_tags) start empty;
+      # nothing existing is read or rewritten. Backs /tag/<slug> and search.
+      - ./database/schema-seo-content.sql:/docker-entrypoint-initdb.d/17-seo-content.sql:ro
 
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U medium_user -d medium_clone"]

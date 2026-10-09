@@ -9,7 +9,8 @@
  *
  * Field names follow the existing articles table (title, slug, content,
  * cover_image, category_id, status, published_at), with meta_description and
- * banner_alt added by database/schema-article-cms.sql.
+ * banner_alt added by database/schema-article-cms.sql, and the SEO/social/
+ * scheduling columns added by database/schema-seo-master.sql.
  */
 
 const { sanitizeBody, stripTags, MAX_INPUT_LENGTH } = require("./article-html");
@@ -18,12 +19,45 @@ const TITLE_MAX = 200;
 const SLUG_MAX = 180;
 const META_DESCRIPTION_MAX = 160;
 const META_DESCRIPTION_MIN = 50;
+const META_TITLE_MAX = 200;
+const EXCERPT_MAX = 320;
+const FOCUS_KEYWORD_MAX = 120;
+const OG_DESCRIPTION_MAX = 300;
+const CANONICAL_URL_MAX = 2000;
 const BANNER_ALT_MAX = 200;
 const BODY_MIN_PUBLISHED = 40;
 
 const STATUS_DRAFT = "draft";
 const STATUS_PUBLISHED = "published";
-const STATUSES = [STATUS_DRAFT, STATUS_PUBLISHED];
+const STATUS_SCHEDULED = "scheduled";
+const STATUS_ARCHIVED = "archived";
+const STATUSES = [STATUS_DRAFT, STATUS_PUBLISHED, STATUS_SCHEDULED, STATUS_ARCHIVED];
+
+/*
+ * Statuses that put an article on the public site. Both demand a real body and
+ * a meta description before they are accepted; a scheduled article is a
+ * published article that simply has not reached its moment yet.
+ */
+const PUBLICATION_STATUSES = [STATUS_PUBLISHED, STATUS_SCHEDULED];
+
+const ROBOTS_INDEX_VALUES = ["index", "noindex"];
+const ROBOTS_FOLLOW_VALUES = ["follow", "nofollow"];
+
+/* Schema.org Article subtypes the public JSON-LD builder can emit. */
+const SCHEMA_TYPES = [
+  "Article",
+  "BlogPosting",
+  "NewsArticle",
+  "TechArticle",
+  "ScholarlyArticle",
+  "Report",
+  "Review",
+  "HowTo",
+  "Recipe",
+  "VideoObject"
+];
+
+const DEFAULT_SCHEMA_TYPE = "BlogPosting";
 
 /*
  * Advertising opt-out for one article. The site-wide AdSense unit is public
@@ -53,8 +87,8 @@ function validateAdsEnabled(value) {
 
 /* A row that arrived with some other status — nothing in the seed data does, but
  * the column allows it — is still displayed and editable. The CMS only ever
- * writes draft or published, which is what articles_status_check (added by
- * database/schema-article-cms.sql) enforces on new and updated rows. */
+ * writes one of STATUSES, which is what articles_status_check (widened by
+ * database/schema-seo-master.sql) enforces on new and updated rows. */
 
 /** Cover images may be a local upload, one of the bundled topic photos, or an
  * absolute https URL (the seeded editorial rows use Unsplash). */
@@ -104,24 +138,95 @@ function validateStatus(value) {
   const status = asString(value).trim().toLowerCase();
   if (STATUSES.includes(status)) return { ok: true, status };
 
-  return { ok: false, error: "Status must be draft or published." };
+  return { ok: false, error: `Status must be one of: ${STATUSES.join(", ")}.` };
+}
+
+/**
+ * Validate a single image reference against the same allowlist the banner uses.
+ * @returns {{ ok: boolean, image: string|null, error?: string }}
+ */
+function validateImageRef(value, label) {
+  if (isBlank(value)) return { ok: true, image: null };
+
+  const raw = asString(value).trim();
+  if (raw.length > 1000) return { ok: false, image: null, error: `${label} reference is too long.` };
+
+  if (UPLOAD_PATH_PATTERN.test(raw)) return { ok: true, image: raw };
+  if (TOPIC_PATH_PATTERN.test(raw)) return { ok: true, image: raw };
+  if (REMOTE_URL_PATTERN.test(raw)) return { ok: true, image: raw };
+
+  return {
+    ok: false,
+    image: null,
+    error: `${label} must be a JPEG, PNG, WebP or AVIF image.`
+  };
 }
 
 /** Accept only image references the site can actually serve. */
 function validateCoverImage(value) {
-  if (isBlank(value)) return { ok: true, coverImage: null };
+  const result = validateImageRef(value, "Banner image");
+  return {
+    ok: result.ok,
+    error: result.error,
+    coverImage: result.image
+  };
+}
+
+/**
+ * Canonical override: an absolute http(s) URL (a syndicated original) or a
+ * site-relative path. Anything else is refused rather than stored and trusted.
+ */
+function validateCanonicalUrl(value) {
+  if (isBlank(value)) return { ok: true, canonicalUrl: null };
 
   const raw = asString(value).trim();
-  if (raw.length > 1000) return { ok: false, error: "Banner image reference is too long." };
+  if (raw.length > CANONICAL_URL_MAX) {
+    return { ok: false, canonicalUrl: null, error: "Canonical URL is too long." };
+  }
+  if (/^https?:\/\/[^\s<>"']+$/i.test(raw) || /^\/[^\s<>"']*$/.test(raw)) {
+    return { ok: true, canonicalUrl: raw };
+  }
+  return {
+    ok: false,
+    canonicalUrl: null,
+    error: "Canonical URL must be an absolute http(s) URL or a site-relative path."
+  };
+}
 
-  if (UPLOAD_PATH_PATTERN.test(raw)) return { ok: true, coverImage: raw };
-  if (TOPIC_PATH_PATTERN.test(raw)) return { ok: true, coverImage: raw };
-  if (REMOTE_URL_PATTERN.test(raw)) return { ok: true, coverImage: raw };
+/** @returns {{ ok: boolean, value: string, error?: string }} */
+function validateRobots(value, allowed, fallback) {
+  if (isBlank(value)) return { ok: true, value: fallback };
+
+  const raw = asString(value).trim().toLowerCase();
+  if (allowed.includes(raw)) return { ok: true, value: raw };
+
+  return { ok: false, value: fallback, error: `Value must be one of: ${allowed.join(", ")}.` };
+}
+
+/** @returns {{ ok: boolean, schemaType: string, error?: string }} */
+function validateSchemaType(value) {
+  if (isBlank(value)) return { ok: true, schemaType: DEFAULT_SCHEMA_TYPE };
+
+  const raw = asString(value).trim();
+  if (SCHEMA_TYPES.includes(raw)) return { ok: true, schemaType: raw };
 
   return {
     ok: false,
-    error: "Banner image must be a JPEG, PNG, WebP or AVIF image."
+    schemaType: DEFAULT_SCHEMA_TYPE,
+    error: `Schema type must be one of: ${SCHEMA_TYPES.join(", ")}.`
   };
+}
+
+/** @returns {{ ok: boolean, scheduledAt: string|null, error?: string }} */
+function validateScheduledAt(value) {
+  if (isBlank(value)) return { ok: true, scheduledAt: null };
+
+  const raw = asString(value).trim();
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) {
+    return { ok: false, scheduledAt: null, error: "Scheduled date is not a valid date and time." };
+  }
+  return { ok: true, scheduledAt: parsed.toISOString() };
 }
 
 /**
@@ -144,7 +249,9 @@ function validateArticle(input, options = {}) {
   // The route handlers pass isDraft explicitly from the resolved status, so
   // this is the single place the rule is decided.
   const isDraft =
-    options.isDraft === undefined ? resolvedStatus !== STATUS_PUBLISHED : Boolean(options.isDraft);
+    options.isDraft === undefined
+      ? !PUBLICATION_STATUSES.includes(resolvedStatus)
+      : Boolean(options.isDraft);
 
   /* ---- title -------------------------------------------------------- */
   const title = asString(body.title).trim().replace(/\s+/g, " ");
@@ -218,9 +325,78 @@ function validateArticle(input, options = {}) {
     errors.banner_alt = `Banner alt text must be ${BANNER_ALT_MAX} characters or fewer`;
   }
 
+  /* ---- excerpt / standfirst ----------------------------------------- */
+  const excerpt = asString(body.excerpt).trim().replace(/\s+/g, " ");
+  if (excerpt.length > EXCERPT_MAX) {
+    errors.excerpt = `Excerpt must be ${EXCERPT_MAX} characters or fewer`;
+  }
+
+  /* ---- SEO title + canonical + robots + schema ---------------------- */
+  const metaTitle = asString(body.meta_title ?? body.metaTitle).trim().replace(/\s+/g, " ");
+  if (metaTitle.length > META_TITLE_MAX) {
+    errors.meta_title = `Meta title must be ${META_TITLE_MAX} characters or fewer`;
+  }
+
+  const canonical = validateCanonicalUrl(body.canonical_url ?? body.canonicalUrl);
+  if (!canonical.ok) errors.canonical_url = canonical.error;
+
+  const robotsIndex = validateRobots(
+    body.robots_index ?? body.robotsIndex,
+    ROBOTS_INDEX_VALUES,
+    "index"
+  );
+  if (!robotsIndex.ok) errors.robots_index = robotsIndex.error;
+
+  const robotsFollow = validateRobots(
+    body.robots_follow ?? body.robotsFollow,
+    ROBOTS_FOLLOW_VALUES,
+    "follow"
+  );
+  if (!robotsFollow.ok) errors.robots_follow = robotsFollow.error;
+
+  const schemaType = validateSchemaType(body.schema_type ?? body.schemaType);
+  if (!schemaType.ok) errors.schema_type = schemaType.error;
+
+  /* ---- focus keyword ------------------------------------------------ */
+  const focusKeyword = asString(body.focus_keyword ?? body.focusKeyword).trim();
+  if (focusKeyword.length > FOCUS_KEYWORD_MAX) {
+    errors.focus_keyword = `Focus keyword must be ${FOCUS_KEYWORD_MAX} characters or fewer`;
+  }
+
+  /* ---- social card overrides ---------------------------------------- */
+  const ogImage = validateImageRef(body.og_image ?? body.ogImage, "Open Graph image");
+  if (!ogImage.ok) errors.og_image = ogImage.error;
+  const twitterImage = validateImageRef(
+    body.twitter_image ?? body.twitterImage,
+    "Twitter image"
+  );
+  if (!twitterImage.ok) errors.twitter_image = twitterImage.error;
+
+  const ogTitle = asString(body.og_title ?? body.ogTitle).trim().replace(/\s+/g, " ");
+  if (ogTitle.length > META_TITLE_MAX) errors.og_title = `Open Graph title must be ${META_TITLE_MAX} characters or fewer`;
+
+  const ogDescription = asString(body.og_description ?? body.ogDescription).trim().replace(/\s+/g, " ");
+  if (ogDescription.length > OG_DESCRIPTION_MAX) errors.og_description = `Open Graph description must be ${OG_DESCRIPTION_MAX} characters or fewer`;
+
+  const twitterTitle = asString(body.twitter_title ?? body.twitterTitle).trim().replace(/\s+/g, " ");
+  if (twitterTitle.length > META_TITLE_MAX) errors.twitter_title = `Twitter title must be ${META_TITLE_MAX} characters or fewer`;
+
+  const twitterDescription = asString(body.twitter_description ?? body.twitterDescription).trim().replace(/\s+/g, " ");
+  if (twitterDescription.length > OG_DESCRIPTION_MAX) errors.twitter_description = `Twitter description must be ${OG_DESCRIPTION_MAX} characters or fewer`;
+
+  /* ---- scheduling ---------------------------------------------------- */
+  const scheduled = validateScheduledAt(body.scheduled_at ?? body.scheduledAt);
+  if (!scheduled.ok) errors.scheduled_at = scheduled.error;
+
   /* ---- status --------------------------------------------------------- */
   const status = statusField;
   if (!status.ok) errors.status = status.error;
+
+  // A scheduled article without a moment to publish at will never go live, so
+  // the two are validated together rather than failing silently later.
+  if (status.ok && resolvedStatus === STATUS_SCHEDULED && !scheduled.scheduledAt) {
+    errors.scheduled_at = "A scheduled article needs a publish date and time.";
+  }
 
   /* ---- advertising opt-out -------------------------------------------- */
   const ads = validateAdsEnabled(body.ads_enabled ?? body.adsEnabled);
@@ -242,7 +418,21 @@ function validateArticle(input, options = {}) {
       bannerAlt: cover.coverImage ? rawAlt : null,
       status: status.status || STATUS_DRAFT,
       adsEnabled: ads.enabled,
-      adsEnabledChoice: ads.choice
+      adsEnabledChoice: ads.choice,
+      excerpt: excerpt || null,
+      metaTitle: metaTitle || null,
+      canonicalUrl: canonical.canonicalUrl,
+      robotsIndex: robotsIndex.value,
+      robotsFollow: robotsFollow.value,
+      schemaType: schemaType.schemaType,
+      focusKeyword: focusKeyword || null,
+      ogTitle: ogTitle || null,
+      ogDescription: ogDescription || null,
+      ogImage: ogImage.image,
+      twitterTitle: twitterTitle || null,
+      twitterDescription: twitterDescription || null,
+      twitterImage: twitterImage.image,
+      scheduledAt: scheduled.scheduledAt
     }
   };
 }
@@ -281,13 +471,25 @@ module.exports = {
   ADS_ENABLED_CHOICES,
   BANNER_ALT_MAX,
   BODY_MIN_PUBLISHED,
+  CANONICAL_URL_MAX,
+  DEFAULT_SCHEMA_TYPE,
+  EXCERPT_MAX,
+  FOCUS_KEYWORD_MAX,
   META_DESCRIPTION_MAX,
   META_DESCRIPTION_MIN,
+  META_TITLE_MAX,
+  OG_DESCRIPTION_MAX,
+  PUBLICATION_STATUSES,
   REMOTE_URL_PATTERN,
+  ROBOTS_FOLLOW_VALUES,
+  ROBOTS_INDEX_VALUES,
+  SCHEMA_TYPES,
   SLUG_MAX,
   STATUSES,
+  STATUS_ARCHIVED,
   STATUS_DRAFT,
   STATUS_PUBLISHED,
+  STATUS_SCHEDULED,
   TITLE_MAX,
   TOPIC_PATH_PATTERN,
   UPLOAD_PATH_PATTERN,
@@ -296,6 +498,11 @@ module.exports = {
   slugify,
   validateAdsEnabled,
   validateArticle,
+  validateCanonicalUrl,
   validateCoverImage,
+  validateImageRef,
+  validateRobots,
+  validateScheduledAt,
+  validateSchemaType,
   validateStatus
 };

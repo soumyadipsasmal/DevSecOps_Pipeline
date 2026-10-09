@@ -78,6 +78,15 @@ COPY app/admin-seo-routes.js .
 COPY app/admin-redirect-routes.js .
 COPY app/admin-redirect-views.js .
 
+# SEO master pipeline: per-page metadata, the dynamic sitemap/robots service,
+# the tag taxonomy, the public SEO routes and the scheduled-article poller.
+# Listed explicitly, same rule as every module above.
+COPY app/seo-meta.js .
+COPY app/sitemap-service.js .
+COPY app/tag-service.js .
+COPY app/seo-master-routes.js .
+COPY app/scheduled-publisher.js .
+
 COPY database /database
 
 COPY scripts/topic-images.tsv /seed-data/topic-images.tsv

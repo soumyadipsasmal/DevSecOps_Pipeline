@@ -26,9 +26,17 @@ const uploads = require("./article-uploads");
 const articleViews = require("./admin-article-views");
 const articleSources = require("./article-sources");
 const contentSimilarity = require("./content-similarity");
+const tagService = require("./tag-service");
 const { renderNotFoundPage } = require("./admin-views");
 
-const { STATUS_DRAFT, STATUS_PUBLISHED, validateArticle } = require("./article-validation");
+const {
+  STATUSES,
+  STATUS_ARCHIVED,
+  STATUS_DRAFT,
+  STATUS_PUBLISHED,
+  STATUS_SCHEDULED,
+  validateArticle
+} = require("./article-validation");
 const { sanitizeBody } = require("./article-html");
 
 /* ==================================================================== */
@@ -106,6 +114,8 @@ function parseListQuery(query = {}) {
 function resolveStatus(body) {
   const intent = String(readField(body, "intent") ?? "").trim().toLowerCase();
   if (intent === STATUS_PUBLISHED) return STATUS_PUBLISHED;
+  if (intent === STATUS_SCHEDULED) return STATUS_SCHEDULED;
+  if (intent === STATUS_ARCHIVED) return STATUS_ARCHIVED;
   if (intent === STATUS_DRAFT) return STATUS_DRAFT;
 
   const status = String(readField(body, "status") ?? "").trim().toLowerCase();
@@ -114,6 +124,27 @@ function resolveStatus(body) {
 
 function isPreviewIntent(body) {
   return String(readField(body, "intent") ?? "").trim().toLowerCase() === "preview";
+}
+
+/**
+ * Read the tag names off a submission. Accepts a comma-separated string (the
+ * form's single input) or an array (the JSON API). Returns undefined when the
+ * field is absent, so a caller can tell "no tags sent" from "clear the tags".
+ */
+function parseTags(body) {
+  const raw = readField(body, "tags", "tag_list", "tagList");
+  if (raw === undefined || raw === null) return undefined;
+  const list = Array.isArray(raw) ? raw : String(raw).split(",");
+  const seen = new Set();
+  const tags = [];
+  for (const value of list) {
+    const name = String(value ?? "").trim().slice(0, 80);
+    const key = name.toLowerCase();
+    if (!name || seen.has(key)) continue;
+    seen.add(key);
+    tags.push(name);
+  }
+  return tags;
 }
 
 /** Run the shared validation for one submission, including the category check. */
@@ -128,9 +159,24 @@ async function validateSubmission(body) {
       content: readField(body, "content", "body_html", "bodyHtml", "body"),
       cover_image: readField(body, "cover_image", "coverImage"),
       banner_alt: readField(body, "banner_alt", "bannerAlt"),
+      excerpt: readField(body, "excerpt"),
+      meta_title: readField(body, "meta_title", "metaTitle"),
+      canonical_url: readField(body, "canonical_url", "canonicalUrl"),
+      robots_index: readField(body, "robots_index", "robotsIndex"),
+      robots_follow: readField(body, "robots_follow", "robotsFollow"),
+      og_title: readField(body, "og_title", "ogTitle"),
+      og_description: readField(body, "og_description", "ogDescription"),
+      og_image: readField(body, "og_image", "ogImage"),
+      twitter_title: readField(body, "twitter_title", "twitterTitle"),
+      twitter_description: readField(body, "twitter_description", "twitterDescription"),
+      twitter_image: readField(body, "twitter_image", "twitterImage"),
+      schema_type: readField(body, "schema_type", "schemaType"),
+      focus_keyword: readField(body, "focus_keyword", "focusKeyword"),
+      scheduled_at: readField(body, "scheduled_at", "scheduledAt"),
+      ads_enabled: readField(body, "ads_enabled", "adsEnabled"),
       status
     },
-    { isDraft: status !== STATUS_PUBLISHED }
+    { isDraft: status !== STATUS_PUBLISHED && status !== STATUS_SCHEDULED }
   );
 
   if (!result.ok) return result;
@@ -159,8 +205,24 @@ function submittedValues(body) {
     content: one("content", "body_html", "bodyHtml", "body"),
     cover_image: one("cover_image", "coverImage"),
     banner_alt: one("banner_alt", "bannerAlt"),
+    excerpt: one("excerpt"),
+    meta_title: one("meta_title", "metaTitle"),
+    canonical_url: one("canonical_url", "canonicalUrl"),
+    robots_index: one("robots_index", "robotsIndex"),
+    robots_follow: one("robots_follow", "robotsFollow"),
+    og_title: one("og_title", "ogTitle"),
+    og_description: one("og_description", "ogDescription"),
+    og_image: one("og_image", "ogImage"),
+    twitter_title: one("twitter_title", "twitterTitle"),
+    twitter_description: one("twitter_description", "twitterDescription"),
+    twitter_image: one("twitter_image", "twitterImage"),
+    schema_type: one("schema_type", "schemaType"),
+    focus_keyword: one("focus_keyword", "focusKeyword"),
+    tags: one("tags", "tag_list", "tagList"),
+    scheduled_at: one("scheduled_at", "scheduledAt"),
+    ads_enabled: one("ads_enabled", "adsEnabled"),
     // Echoed raw so a rejected status can be shown back; the radio buttons
-    // fall back to draft when it is not one of the two allowed values.
+    // fall back to draft when it is not one of the allowed values.
     status: String(readField(body, "status") ?? "").trim().toLowerCase()
   };
 }
@@ -197,7 +259,8 @@ function readEditorial(body) {
  * @returns {null | object} the similarity result when acknowledgment is missing
  */
 function pendingSimilarityWarning(body, researchRefs) {
-  if (resolveStatus(body) !== STATUS_PUBLISHED) return null;
+  const status = resolveStatus(body);
+  if (status !== STATUS_PUBLISHED && status !== STATUS_SCHEDULED) return null;
   if (String(readField(body, "acknowledge_similarity") ?? "").trim() === "1") return null;
 
   const result = contentSimilarity.score(
@@ -225,9 +288,24 @@ function formContext(body, { article = null, errors = {} } = {}) {
 function articleJson(article) {
   return {
     id: article.id,
+    author_id: article.author_id,
     title: article.title,
     slug: article.slug,
+    excerpt: article.excerpt,
     meta_description: article.meta_description,
+    meta_title: article.meta_title,
+    canonical_url: article.canonical_url,
+    robots_index: article.robots_index,
+    robots_follow: article.robots_follow,
+    og_title: article.og_title,
+    og_description: article.og_description,
+    og_image: article.og_image,
+    twitter_title: article.twitter_title,
+    twitter_description: article.twitter_description,
+    twitter_image: article.twitter_image,
+    schema_type: article.schema_type,
+    focus_keyword: article.focus_keyword,
+    tags: Array.isArray(article.tags) ? article.tags : undefined,
     content: article.content,
     body_format: article.body_format,
     cover_image: article.cover_image,
@@ -238,6 +316,8 @@ function articleJson(article) {
     is_featured: article.is_featured,
     is_trending: article.is_trending,
     status: article.status,
+    ads_enabled: article.ads_enabled,
+    scheduled_at: article.scheduled_at,
     published_at: article.published_at,
     created_at: article.created_at,
     updated_at: article.updated_at,
@@ -247,6 +327,14 @@ function articleJson(article) {
 
 function notFound(res) {
   return res.status(404).json({ error: "Article not found" });
+}
+
+/** The human sentence shown after a save, one per editorial status. */
+function savedNotice(title, status) {
+  if (status === STATUS_PUBLISHED) return `“${title}” is published.`;
+  if (status === STATUS_SCHEDULED) return `“${title}” is scheduled.`;
+  if (status === STATUS_ARCHIVED) return `“${title}” is archived.`;
+  return `“${title}” was saved as a draft.`;
 }
 
 /**
@@ -454,14 +542,12 @@ function registerPages(pages) {
         sources: editorial.sources,
         research: editorial.research
       });
+      const tags = parseTags(req.body);
+      if (tags) await tagService.setArticleTags(article.id, tags);
 
       return res.redirect(
         303,
-        `/admin/articles?notice=${encodeURIComponent(
-          result.values.status === STATUS_PUBLISHED
-            ? `“${article.title}” is published.`
-            : `“${article.title}” was saved as a draft.`
-        )}`
+        `/admin/articles?notice=${encodeURIComponent(savedNotice(article.title, result.values.status))}`
       );
     } catch (error) {
       return next(error);
@@ -485,11 +571,12 @@ function registerPages(pages) {
       const article = await articleService.getArticleForAdmin(id);
       if (!article) return notFoundPage(req, res);
 
-      const [categories, recentUploads, sources, research] = await Promise.all([
+      const [categories, recentUploads, sources, research, tags] = await Promise.all([
         articleService.listCategories(),
         uploads.listUploads(),
         articleSources.listSources(id),
-        articleSources.listResearch(id)
+        articleSources.listResearch(id),
+        tagService.getTagsForArticle(id)
       ]);
 
       // Show the number on load as well as on publish, so an editor can see the
@@ -508,7 +595,8 @@ function registerPages(pages) {
           categories,
           uploads: recentUploads,
           values: {
-            status: article.status === STATUS_PUBLISHED ? STATUS_PUBLISHED : STATUS_DRAFT
+            status: article.status,
+            tags: tags.map(tag => tag.name).join(", ")
           },
           sources: sources.map(row => ({
             name: row.source_name,
@@ -565,15 +653,19 @@ function registerPages(pages) {
         sources: editorial.sources,
         research: editorial.research
       });
+      const tags = parseTags(req.body);
+      if (tags) await tagService.setArticleTags(id, tags);
 
-      return res.redirect(
-        303,
-        `/admin/articles?notice=${encodeURIComponent(
-          result.values.status === STATUS_PUBLISHED
-            ? `“${article.title}” was updated.`
-            : `“${article.title}” was updated and is now a draft.`
-        )}`
-      );
+      const updatedNotice =
+        result.values.status === STATUS_PUBLISHED
+          ? `“${article.title}” was updated and is published.`
+          : result.values.status === STATUS_SCHEDULED
+            ? `“${article.title}” was updated and scheduled.`
+            : result.values.status === STATUS_ARCHIVED
+              ? `“${article.title}” was updated and archived.`
+              : `“${article.title}” was updated and is now a draft.`;
+
+      return res.redirect(303, `/admin/articles?notice=${encodeURIComponent(updatedNotice)}`);
     } catch (error) {
       return next(error);
     }
@@ -752,6 +844,8 @@ function registerApi(api) {
         sources: editorial.sources,
         research: editorial.research
       });
+      const tags = parseTags(req.body);
+      if (tags) article.tags = await tagService.setArticleTags(article.id, tags);
 
       return res.status(201).json({ article: articleJson(article) });
     } catch (error) {
@@ -780,6 +874,8 @@ function registerApi(api) {
         sources: editorial.sources,
         research: editorial.research
       });
+      const tags = parseTags(req.body);
+      if (tags) article.tags = await tagService.setArticleTags(id, tags);
 
       return res.json({ article: articleJson(article) });
     } catch (error) {
@@ -796,8 +892,8 @@ function registerApi(api) {
       if (!id) return notFound(res);
 
       const status = String(readField(req.body, "status") ?? "").trim().toLowerCase();
-      if (status !== STATUS_DRAFT && status !== STATUS_PUBLISHED) {
-        return res.status(400).json({ error: "Status must be draft or published." });
+      if (!STATUSES.includes(status)) {
+        return res.status(400).json({ error: `Status must be one of: ${STATUSES.join(", ")}.` });
       }
 
       const article = await articleService.setStatus(id, status);

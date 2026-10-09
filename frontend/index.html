@@ -4,9 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<!-- Title, description, canonical and robots are rewritten per page by
-     frontend/seo.js. The values here are the homepage defaults and the
-     fallback that crawlers see if they do not execute JavaScript. -->
+<!-- SEO-HEAD:START -->
+<!-- The block between these markers is the homepage default. The server
+     replaces it per request for /blog/<slug>, /category/<slug>, /tag/<slug>
+     and /author/<slug> so a crawler that does not run JavaScript still sees
+     the right title, description, canonical, robots and social card. -->
 <title>KaliNova — Read. Write. Share.</title>
 <meta name="title" content="KaliNova — Read. Write. Share.">
 <meta name="description" content="KaliNova is an independent publishing platform for readers and writers, covering stories on cinema, fashion, news, wildlife and travel.">
@@ -31,6 +33,7 @@
 <meta name="twitter:description" content="KaliNova is an independent publishing platform for readers and writers, covering stories on cinema, fashion, news, wildlife and travel.">
 <meta name="twitter:image" content="https://kalinova.in/assets/og-image.png">
 <meta name="twitter:image:alt" content="KaliNova">
+<!-- SEO-HEAD:END -->
 
 <!-- Icons -->
 <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
@@ -53,7 +56,9 @@
 <link rel="stylesheet" href="/assets/monetization.css">
 
 <!-- Structured data. Identifiers are the site entities only; the page-specific
-     WebPage node is added by seo.js at render time. -->
+     WebPage node is added by seo.js at render time. The server replaces the
+     block between the markers below for a page that has server-side data. -->
+<!-- SEO-JSONLD:START -->
 <script type="application/ld+json" id="kalinova-jsonld">
 {
   "@context": "https://schema.org",
@@ -95,6 +100,7 @@
   ]
 }
 </script>
+<!-- SEO-JSONLD:END -->
 </head>
 <body>
 
@@ -215,11 +221,16 @@
      fetches GET /api/ads, which is empty until an administrator switches ads
      on. monetization.js fetches only same-origin /api/… endpoints.
      open-data.js fetches only same-origin /api/… endpoints and injects the
-     locally vendored Leaflet library (CSP: script-src 'self'). -->
+     locally vendored Leaflet library (CSP: script-src 'self').
+     analytics.js is the opt-in GA4 loader: it reads same-origin
+     /api/analytics/config and makes no third-party request unless a
+     measurement id is configured and the reader has granted consent. It is a
+     silent no-op on the shipped (analytics-off) build. -->
 <script src="/seo.js"></script>
 <script src="/assets/sidebar.js"></script>
 <script src="/assets/ads.js"></script>
 <script src="/assets/monetization.js"></script>
+<script src="/assets/analytics.js"></script>
 <script src="/assets/open-data.js"></script>
 <script src="/router.js"></script>
 <script src="/pages.js"></script>

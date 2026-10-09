@@ -164,12 +164,17 @@
 
   function grantConsent() {
     writeConsent("granted");
+    hideBanner();
     hydrateAll();
+    /* A single, decryptable signal lets the optional analytics loader begin
+       only after the reader has actually agreed (see assets/analytics.js). */
+    document.dispatchEvent(new CustomEvent("kal:consent", { detail: { granted: true } }));
   }
 
   function denyConsent() {
     writeConsent("denied");
     hideBanner();
+    document.dispatchEvent(new CustomEvent("kal:consent", { detail: { granted: false } }));
   }
 
   /* ------------------------------------------------------------------ */

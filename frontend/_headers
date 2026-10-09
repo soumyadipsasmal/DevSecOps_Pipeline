@@ -7,9 +7,14 @@
   Permissions-Policy: geolocation=(), microphone=(), camera=(), interest-cohort=()
   # The page must work whether or not the Google Fonts stylesheet loads.
   #
-  # This policy is intentionally closed: it allows only same-origin scripts and
-  # no third-party connections, so no ad or analytics request can leave the
-  # reader's browser on the current deployment.
+  # This policy stays closed by default: scripts, connections and images are
+  # same-origin, so nothing reaches a third party on the shipped build.
+  #
+  # ANALYTICS IS OFF BY DEFAULT. The googletagmanager / google-analytics origins
+  # below are only ever *contacted* after an operator sets GA_MEASUREMENT_ID and
+  # the reader grants advertising consent; assets/analytics.js makes no request
+  # otherwise, so allowing the origins here does not by itself track anyone. If
+  # the analytics feature is never used, these entries are inert.
   #
   # ADS / ADSENSE ARE NOT YET ENABLED. The site ships with no publisher ID and
   # no slot IDs, so nothing to serve. If you switch ads on in
@@ -43,7 +48,7 @@
   # is vendored under /vendor/leaflet (script-src stays 'self'), and tiles are
   # the only new outbound origin in the policy. Self-hosted tile servers just
   # need OSM_TILE_URL set and this host entry updated to match.
-  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https://*.tile.openstreetmap.org; connect-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https://*.tile.openstreetmap.org https://www.google-analytics.com https://www.googletagmanager.com; connect-src 'self' https://www.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com; frame-ancestors 'self'; base-uri 'self'; form-action 'self'
 
 # Fingerprinted-by-content assets are not fingerprinted here, so keep the cache
 # short and revalidate. Static files are served straight from disk.

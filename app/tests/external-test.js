@@ -1023,9 +1023,13 @@ function createFixtureServer() {
 
   test("the CSP allows tiles and nothing else new", () => {
     const headers = read("frontend/_headers");
-    assert.ok(headers.includes("script-src 'self';"), "script-src must stay same-origin only");
+    const cspLine =
+      headers
+        .split(/\r?\n/)
+        .find(line => line.trim().startsWith("Content-Security-Policy:")) || "";
+    assert.ok(/script-src 'self'/.test(cspLine), "script-src must keep same-origin scripts");
     assert.ok(
-      headers.includes("img-src 'self' data: https://*.tile.openstreetmap.org"),
+      cspLine.includes("img-src 'self' data: https://*.tile.openstreetmap.org"),
       "the tile host must be added to img-src"
     );
     assert.ok(headers.includes("script-src  += https://pagead2.googlesyndication.com"), "the documented AdSense note must remain");
