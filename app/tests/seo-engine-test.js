@@ -27,6 +27,8 @@
  * Run with:  node tests/seo-engine-test.js
  */
 
+require("./test-db-guard");
+
 const assert = require("assert");
 const fs = require("fs");
 const path = require("path");

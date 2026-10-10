@@ -412,7 +412,7 @@
           <aside class="sidebar">
             ${AdSlot.placeholder("sidebar-top")}
             ${Monetization.placeholder("sidebar")}
-            <section class="side-card">
+            <section class="side-card side-card-trending">
               <h2 class="side-heading">Trending on KaliNova</h2>
               <ol class="trending-list">
                 ${trendingList.map((a, i) => `
@@ -1049,39 +1049,6 @@
   /* Category Page                                                       */
   /* ------------------------------------------------------------------ */
 
-  /**
-   * The topic switcher shown on a topic page.
-   *
-   * Every topic is listed, not just the one being read, so a reader can move
-   * sideways between subjects from anywhere on the site. The current topic is
-   * marked with is-active and aria-current, and the list is built from
-   * /api/categories, so adding a topic in the admin makes it appear here with
-   * no frontend change.
-   *
-   * This replaces the old "← All stories" back link, which only ever pointed at
-   * the listing and gave no way to reach a different topic.
-   */
-  function renderTopicSwitcher(categories, activeSlug) {
-    if (!categories || !categories.length) return "";
-
-    const chips = categories
-      .map(topic => {
-        const isActive = topic.slug === activeSlug;
-        return `<li>
-            <a class="topic-chip${isActive ? " is-active" : ""}"
-               href="/category/${encodeURIComponent(topic.slug)}"${isActive ? ' aria-current="page"' : ""}>${escapeHtml(topic.name)}</a>
-          </li>`;
-      })
-      .join("\n          ");
-
-    return `<nav class="topic-switcher" aria-label="All topics">
-        <h2 class="topic-switcher-heading">Browse by topic</h2>
-        <ul>
-          ${chips}
-        </ul>
-      </nav>`;
-  }
-
   async function renderCategory(params) {
     const slug = params && params.slug;
     if (!slug) return renderHome();
@@ -1141,12 +1108,12 @@
               <li class="breadcrumbs-item"><span aria-current="page">${escapeHtml(cat.name)}</span></li>
             </ol>
           </nav>
+          ${cat.image ? `<figure class="category-banner"><img src="${escapeHtml(cat.image)}" alt="${escapeHtml(cat.name)}" width="1200" height="630" fetchpriority="high" decoding="async"></figure>` : ""}
           <div class="page-header">
             <h1 class="page-title">${escapeHtml(cat.name)}</h1>
             ${cat.description ? `<p class="page-subtitle">${escapeHtml(cat.description)}</p>` : ""}
           </div>
           ${Monetization.placeholder("category_top")}
-          ${renderTopicSwitcher(catData.categories, cat.slug)}
           ${articles.length ? `
             <div class="news-grid">
               ${articles.map(a => `

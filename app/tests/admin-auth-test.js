@@ -499,13 +499,25 @@ section("[10] The app refuses to start with an unusable secret");
   const { spawnSync } = require("child_process");
 
   function loadInProduction(env) {
+    // Production now requires DATABASE_URL, so these secret-resolution probes
+    // supply a syntactically valid (fake, never connected) URL. Without it the
+    // DATABASE_URL gate would throw first and the suite could not isolate the
+    // secret checks it is actually testing.
     return spawnSync(
       process.execPath,
       ["-e", "require('./config')"],
       {
         cwd: path.join(__dirname, ".."),
         encoding: "utf8",
-        env: Object.assign({}, process.env, { NODE_ENV: "production" }, env)
+        env: Object.assign(
+          {},
+          process.env,
+          {
+            NODE_ENV: "production",
+            DATABASE_URL: "postgresql://probe-user:probe-password@probe.invalid:5432/probe"
+          },
+          env
+        )
       }
     );
   }

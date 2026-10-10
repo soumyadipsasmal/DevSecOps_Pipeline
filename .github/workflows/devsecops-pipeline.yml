@@ -152,6 +152,15 @@ jobs:
       DB_NAME: medium_clone
       DB_USER: medium_user
       DB_PASSWORD: medium_pass
+      # The disposable Compose database. The destructive suites may only write
+      # to the exact database they declare via TEST_DATABASE_URL — CI=true alone
+      # never authorises them. It matches db/.env + compose.dev.yml and is
+      # intentionally not a secret: it lives only inside the ephemeral runner.
+      TEST_DATABASE_URL: postgresql://medium_user:medium_pass@localhost:5434/medium_clone
+      # test:admin:live writes CMS rows over HTTP to a loopback server backed by
+      # the disposable database above; KALINOVA_LIVE_TEST_ENABLED is the
+      # operator confirmation that this is safe in this job.
+      KALINOVA_LIVE_TEST_ENABLED: "1"
       JWT_SECRET: ci-pipeline-not-a-real-secret-value
       ADMIN_SESSION_SECRET: ci-pipeline-session-9f3c1a7b25d84e60a1c2f5b7d9e3a604
       ADMIN_EMAIL: ci-admin@example.com

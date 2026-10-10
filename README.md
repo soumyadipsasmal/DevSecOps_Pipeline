@@ -71,10 +71,14 @@ Replace them before deploying anywhere public.
 ```bash
 cd app
 npm install
-# point DB_* in app/.env at your PostgreSQL instance, then:
+# point DB_* in app/.env at your PostgreSQL instance, then (fresh database
+# only — the same order docker-compose applies on a new volume):
 psql -h localhost -U medium_user -d medium_clone -f ../database/schema.sql
 psql -h localhost -U medium_user -d medium_clone -f ../database/seed-categories.sql
 psql -h localhost -U medium_user -d medium_clone -f ../database/seed.sql
+psql -h localhost -U medium_user -d medium_clone -f ../database/seed-topics.sql
+psql -h localhost -U medium_user -d medium_clone -f ../database/schema-article-images.sql
+psql -h localhost -U medium_user -d medium_clone -f ../database/fix-article-categories.sql
 npm run migrate
 npm start                     # http://localhost:3007
 ```
@@ -97,11 +101,11 @@ npm start                     # http://localhost:3007
 | Script | Purpose |
 | --- | --- |
 | `npm start` | Start the Express server |
-| `npm run migrate` | Apply the eight idempotent migrations and verify the columns landed |
+| `npm run migrate` | Apply the ten idempotent migrations and verify the columns landed |
 | `npm run create-admin` | Create or repair an administrator account |
 | `npm run seed:images` | Match article photos to article bodies |
 | `npm run sitemap` | Regenerate `frontend/sitemap.xml` |
-| `npm test` | The whole test battery (11 suites, 1121 checks) |
+| `npm test` | The whole test battery (15 suites) |
 | `npm run test:seo` | SEO smoke test |
 | `npm run test:seo-engine` | SEO engine: determinism, report contract, redirects, wiring, schema |
 | `npm run test:admin` | Offline admin authentication tests (no database needed) |
@@ -112,6 +116,8 @@ npm start                     # http://localhost:3007
 | `npm run test:cb` | Circuit-breaker and feed-safety tests |
 | `npm run test:external` | Open-data services, licences and repository guardrails |
 | `npm run test:monetization` | Monetization CRUD, privacy metadata, wiring and schema |
+| `npm run test:seo-master` | SEO content: sitemaps, robots, tags and per-entity metadata |
+| `npm run test:analytics` | Analytics wiring, privacy defaults and no-tracking guarantees |
 
 ## Configuration
 
@@ -152,10 +158,39 @@ look like a placeholder (`change-this…`, `dev-only…`, `replace-me…`,
 instead of signing cookies with a key an attacker already knows.
 `JWT_SECRET` is still accepted as a fallback key for older deployments.
 
+#### Production checklist
+
+- Run with `NODE_ENV=production` — the app then refuses to start without a
+  strong `ADMIN_SESSION_SECRET` and a `DATABASE_URL`, and defaults the admin
+  cookies to `Secure`. The value must be exactly `production` or `development`
+  (trimmed); any other non-empty value (`prod`, `Prod`, …) refuses to start
+  instead of silently running development defaults. Compose defaults an unset
+  `NODE_ENV` to `development`, so an empty value can never look like
+  production.
+- `ADMIN_SESSION_SECRET`: generate once (e.g. `openssl rand -hex 48`), set it
+  in `.env`, and keep it stable across restarts — see
+  [Deployment](#deployment). Never a placeholder.
+- `ADMIN_COOKIE_SECURE=true` — force the `Secure` cookie flag when serving over
+  HTTPS without `NODE_ENV=production`.
+- `TRUST_PROXY=true` (or a hop count) — set only when a trusted reverse proxy
+  fronts the app; login rate limiting uses the client IP.
+- `DATABASE_URL` with `sslmode=verify-full` — required in production: the app
+  refuses to start without it there, because the
+  `DB_HOST`/`DB_PORT`/`DB_NAME`/`DB_USER`/`DB_PASSWORD` fallback carries no
+  encryption and is dev-only. `app/db.js` connects over TLS and verifies the
+  server certificate, rejecting self-signed or otherwise untrusted
+  certificates.
+- `SITE_URL` / `CONTACT_EMAIL` — the site's real origin and the contact address
+  used in the User-Agent of open-data calls.
+- In Docker, `docker-compose.yml` forwards `NODE_ENV`, `ADMIN_COOKIE_SECURE`,
+  `TRUST_PROXY`, the analytics and newsletter settings, and `IMAGE_TSV`; the
+  rest of the variables above apply automatically inside the app.
+
 ## Database and migrations
 
-Tables: `users`, `articles`, `categories`, `article_images`, `ad_settings`,
-`ad_placements`, `external_data_cache`, `rss_items`, `integration_status`,
+Tables: `users`, `articles`, `categories`, `article_images`, `tags`,
+`article_tags`, `ad_settings`, `ad_placements`, `external_data_cache`,
+`rss_items`, `integration_status`,
 `integration_events`, `article_sources`, `article_research_metadata`,
 `affiliate_links`, `affiliate_clicks`, `sponsored_campaigns`, `direct_ads`,
 `direct_ad_events`, `newsletter_subscribers`, `monetization_disclosures`,
@@ -173,16 +208,19 @@ Tables: `users`, `articles`, `categories`, `article_images`, `ad_settings`,
 | `database/schema-research-sources.sql` | `article_sources` (citations) + `article_research_metadata` (provenance) |
 | `database/schema-monetization.sql` | Monetization dashboard storage — all empty or disabled |
 | `database/schema-seo-engine.sql` | `redirects` table for slug-change / retired URLs (starts empty) |
+| `database/schema-seo-master.sql` | Per-entity SEO metadata on `articles`, `categories`, `users` + `idx_articles_author_id` |
+| `database/schema-seo-content.sql` | `tags` + `article_tags` multi-tag taxonomy |
 
 ```bash
 cd app
 npm run migrate
 ```
 
-The runner applies the eight additive files from the previous phase in the
-table above (`schema-admin-auth`, `schema-article-cms`,
-`schema-ad-placements`, `schema-external-data`, `schema-integration-safety`,
-`schema-research-sources`, `schema-monetization`, `schema-seo-engine`), each
+The runner applies the ten additive files from the previous phase in the table
+above (`schema-admin-auth`, `schema-article-cms`, `schema-ad-placements`,
+`schema-external-data`, `schema-integration-safety`,
+`schema-research-sources`, `schema-monetization`, `schema-seo-engine`,
+`schema-seo-master`, `schema-seo-content`), each
 in its own transaction, then reads `information_schema` and fails loudly if a
 column is still missing. It is idempotent and never rewrites existing article
 content or an existing `password_hash`. The first two files are base schema
@@ -201,28 +239,58 @@ Fresh Docker volumes apply everything automatically; an existing volume only
 runs init scripts on its first creation, so run `npm run migrate` after
 pulling.
 
-Seeds: `seed-categories.sql`, `seed.sql`, `seed-topics.sql`,
+Seeds and schema files: `seed-categories.sql`, `seed.sql`, `seed-topics.sql`,
 `seed-editorial-2026.sql`, `fix-article-categories.sql` — all mounted into
 `docker-entrypoint-initdb.d` by `docker-compose.yml`.
 
+### Fresh-database bootstrap order
+
+For a new (empty) PostgreSQL instance, apply the files in this exact order —
+the same order `docker-entrypoint-initdb.d` uses on a fresh volume:
+
+1. `schema.sql` (core tables)
+2. `seed-categories.sql` (the fourteen topic categories)
+3. `seed.sql` (site content)
+4. `seed-topics.sql` (topic taxonomy)
+5. `schema-article-images.sql` (article-images table)
+6. `fix-article-categories.sql` (category backfill)
+7. `npm run migrate` — the ten additive migrations in the table above
+8. Content and assets (optional): `seed-editorial-2026.sql`, then
+   `npm run seed:images` to match photos, then `npm run sitemap` to rebuild
+   `frontend/sitemap.xml`
+
+Steps 1–6 are for a new database only; every `database/*.sql` file and the
+migration runner are additive and idempotent, so an existing database only
+ever needs `npm run migrate`.
+
 ## Testing
 
-`npm test` runs eleven independent suites — **1121 checks in total** — and any
+`npm test` runs fifteen independent suites (the total check count is not a
+fixed constant — a few suites only run their full check count online) and any
 failing check exits non-zero:
 
 | # | Suite | Script | Needs | Checks |
 | --- | --- | --- | --- | --- |
-| 1 | SEO smoke | `test:seo` | nothing | 76 |
-| 2 | SEO engine & redirects | `test:seo-engine` | a reachable database | 93 |
-| 3 | Admin authentication (offline) | `test:admin` | nothing | 100 |
-| 4 | Article CMS | `test:cms` | nothing | 189 |
-| 5 | Admin ads screens | `test:admin:ads` | nothing | 170 |
-| 6 | Public ads / consent | `test:ads` | a reachable database | 72 |
-| 7 | Live admin HTTP | `test:admin:live` | server + admin account | 116 |
-| 8 | Circuit breakers | `test:cb` | nothing | 30 |
-| 9 | Open-data services | `test:external` | nothing | 79 |
-| 10 | Research workflow | `test:research` | a reachable database | 92 |
-| 11 | Monetization | `test:monetization` | a reachable database | 104 |
+| 1 | Test database guard | `test:guard` | nothing | 18 |
+| 2 | Config startup guard | `test:config` | nothing | 11 |
+| 3 | SEO smoke | `test:seo` | nothing | 75 |
+| 4 | SEO engine & redirects | `test:seo-engine` | disposable test database (`TEST_DATABASE_URL`) | 93 |
+| 5 | Admin authentication (offline) | `test:admin` | nothing | 100 |
+| 6 | Article CMS | `test:cms` | nothing | 192 |
+| 7 | Admin ads screens | `test:admin:ads` | nothing | 172 |
+| 8 | Public ads / consent | `test:ads` | disposable test database (`TEST_DATABASE_URL`) | 72 |
+| 9 | Live admin HTTP | `test:admin:live` | loopback server + admin account + `TEST_DATABASE_URL` + `KALINOVA_LIVE_TEST_ENABLED=1` | 116 |
+| 10 | Circuit breakers | `test:cb` | nothing | 30 |
+| 11 | Open-data services | `test:external` | disposable test database (`TEST_DATABASE_URL`) | 79 |
+| 12 | Research workflow | `test:research` | reachable database (read-only) | 92 |
+| 13 | Monetization | `test:monetization` | reachable database (read-only) | — |
+| 14 | SEO master | `test:seo-master` | disposable test database (`TEST_DATABASE_URL`) | — |
+| 15 | Analytics | `test:analytics` | nothing | 45 |
+
+The offline suites (SEO smoke, Admin auth, Article CMS, Admin ads, Circuit
+breakers, Research workflow, Monetization, Analytics) were re-run read-only in
+the latest audit; the database/server-bound counts for SEO engine, SEO content,
+Public ads and Open-data services come from the project's own runners.
 
 The live suite covers the sign-in page, invalid email, invalid password,
 successful sign-in, the redirect to the dashboard, dashboard access while
@@ -234,7 +302,7 @@ site and article/category endpoints still respond. Without `ADMIN_EMAIL` /
 
 ```bash
 cd app
-npm test                       # all 11 suites; the live one SKIPs without a server
+npm test                       # all 15 suites; the live one SKIPs without a server
 
 BASE_URL=http://localhost:3007 \
 ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD='your-password' \
@@ -246,6 +314,58 @@ npm run test:admin:live        # end-to-end checks over HTTP
 > only `ADMIN_LOGIN_ATTEMPTS` (8) per `ADMIN_LOGIN_WINDOW_MINUTES` (15).
 > Running it back to back therefore trips `429` and the suite fails. Either
 > wait out the window or restart the app, which clears the in-memory limiter.
+
+### Test database isolation
+
+The suites fall into three classes:
+
+- **Offline** — `test:guard`, `test:config`, `test:seo`, `test:admin`,
+  `test:cms`, `test:admin:ads`, `test:cb`, `test:analytics`. They need no
+  database at all (the CMS suite creates a pool but never queries it).
+- **Read-only** — `test:research`, `test:monetization`. They may run against any
+  reachable database and change nothing.
+- **Destructive** — `test:seo-engine` (create/list/delete a `redirects` row),
+  `test:ads` (updates ad settings), `test:seo-master` (inserts + deletes
+  articles/tags), `test:external` (writes `integration_status`) and
+  `test:admin:live` (full CMS CRUD over HTTP). They **write** to the database
+  they connect to and refuse to guess which one that may be: `app/tests/
+  test-db-guard.js` aborts them up front unless `TEST_DATABASE_URL` is set to a
+  database you can afford to mutate — a dedicated, throwaway instance (a
+  separate Neon branch), never your production branch, `sslmode=verify-full`.
+
+`TEST_DATABASE_URL` is **always** required for the destructive suites. There is
+no environment bypass: `CI=true`, `GITHUB_ACTIONS=true` and friends never
+authorise destructive testing on their own. GitHub Actions still sets
+`TEST_DATABASE_URL` to its disposable Compose PostgreSQL
+(`db/.env` / `docker-compose.yml`), which is provisioned fresh per run — the CI
+flag alone is never the signal.
+
+Why the guard exists: run from `app/`, a test process loads `app/.env`, so
+without this these suites would inherit the production `DATABASE_URL` and
+mutate it. `app/tests/test-db-guard.js` runs before anything imports the
+database pool and, with no bypass, requires a `TEST_DATABASE_URL` that parses
+as `postgres|postgresql` with a hostname, a (default-normalised) port, a
+database name and a username. It then refuses any target whose endpoint
+matches `app/.env`'s `DATABASE_URL` — compared on port + hostname with the
+Neon pooler marker (`-pooler.`) normalised away, so a direct endpoint, its
+pooled alias, and a differently written default port all refuse. On success the
+guard rebinds `DATABASE_URL` to the validated test target before any pool
+exists, so every connection the suite makes (directly or through imports) is
+bound to the test database. It never prints a connection string.
+
+```bash
+cd app
+TEST_DATABASE_URL='postgresql://user:pass@host:5432/db?sslmode=verify-full' \
+  npm run test:seo-engine    # the same flag serves test:ads, test:seo-master, test:external
+```
+
+`test:admin:live` has a second layer: the running server already has its own
+database, which a guard inside the test process cannot redirect. So besides
+`TEST_DATABASE_URL`, `app/tests/test-live-guard.js` requires the target to be a
+loopback `BASE_URL` (localhost / 127.0.0.1 / ::1) *and* an explicit
+`KALINOVA_LIVE_TEST_ENABLED=1` — your confirmation that the server on that
+address is backed by the disposable test database. GitHub Actions sets it for
+its loopback Compose deployment.
 
 ## Security pipeline
 
@@ -383,7 +503,7 @@ docker compose up --build # container
 | `/admin/login` | POST | no | Sign in, then `303` to `/admin/dashboard` |
 | `/admin/dashboard` | GET | yes | Counts and recent articles |
 | `/admin/logout` | POST | yes | Ends the session, then `303` to `/admin/login?logged_out=1` |
-| `/health` | GET | no | `{ status, database, time }` health probe |
+| `/health` | GET | no | Readiness probe: answers `200` with `{ status, database, time }` only when a real `SELECT NOW()` succeeds; `500` when the database is unreachable |
 | `/api/admin/csrf` | GET | no | Issues a CSRF token for the JSON API |
 | `/api/admin/login` | POST | no | JSON sign-in; needs `X-CSRF-Token` |
 | `/api/admin/logout` | POST | yes | Ends the session |
@@ -712,8 +832,11 @@ SEO and ops:
   `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN` and a strict
   `Referrer-Policy` (a strict `Content-Security-Policy` is applied to the admin
   surface only — see `app/server.js`).
-- `frontend/sitemap.xml` is a generated file (not a per-request query) —
-  regenerate after publishing with `npm run sitemap`.
+- Under Express, `/sitemap.xml`, `/sitemap-:child.xml` and `/robots.txt` come
+  from the dynamic SEO router (`app/seo-master-routes.js`). On static hosting
+  (Cloudflare Pages), the generated `frontend/sitemap.xml` file is served from
+  the frontend directory — regenerate that static file after publishing with
+  `npm run sitemap`.
 - `frontend/robots.txt` disallows `/admin`, `/api/admin` and the tool views
   (all eight also emit `noindex` from `pages.js`; `/guest-posts` is noindexed
   and absent from the sitemap but is not listed in `robots.txt`);
@@ -722,6 +845,27 @@ SEO and ops:
 - Leaflet is vendored locally under `frontend/vendor/leaflet` — no third-party
   CDN is loaded, so the page works offline and tells nothing to a font or
   script CDN.
+
+### Responsive navigation and mobile layout
+
+The header and topic strip adapt on their own, without a separate mobile page:
+
+- The topic strip shows the primary categories inline; a native `<details>`
+  **More Topics** disclosure at the end of the strip opens a panel with the
+  remaining categories, built from `/api/categories`, so a new category appears
+  with no frontend change. It closes on outside click, `Escape` and route
+  changes.
+- On phones the strip moves to its own full-width row beneath the logo and
+  hamburger, scrolls horizontally, and the header drawer carries the search
+  link.
+- Article cards stack on phones with the cover image restored full-width
+  (16:9). An article with no cover image collapses its media box cleanly instead
+  of leaving a gap.
+- On phones the sidebar shows only the **Trending on KaliNova** list — the
+  social links stay in the header drawer and the subscription block stays in the
+  footer.
+- Category pages no longer carry a separate "Browse by topic" switcher; the
+  header strip and its More Topics panel are the way to move between categories.
 
 ---
 
@@ -737,6 +881,10 @@ docker compose exec -e ADMIN_EMAIL=... -e ADMIN_PASSWORD=... app npm run create-
 
 The image copies each `app/*.js` module explicitly, so a new module that is
 not listed in the `Dockerfile` fails the build instead of missing at run time.
+
+For a real deployment, set `NODE_ENV=production` and `DATABASE_URL` (required
+in production) in the `.env` file compose reads — see the
+[Production checklist](#production-checklist).
 
 ### Static (Cloudflare Pages / Netlify)
 
@@ -778,6 +926,13 @@ Scripts:
 
 The full stack has been brought up and the entire test battery re-run against
 it (October 2026, local machine):
+
+> The table records that run. The battery has since grown to fifteen suites
+> (the test-db-guard and config-guard suites, SEO content & taxonomy and
+> Analytics were added later), and a few counts below are no longer current
+> (e.g. Article CMS is 192, Admin ads is 172 checks, and the seed now creates
+> fourteen categories rather than the six recorded in the run). Re-run the
+> battery against a fresh stack to refresh them.
 
 | Step | Command | Result |
 | --- | --- | --- |

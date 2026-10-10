@@ -25,6 +25,9 @@ require(require.resolve("dotenv", { paths: [APP_DIR] })).config({
 
 const pool = require(path.join(APP_DIR, "db.js"));
 
+// SITE_ORIGIN is the URL emitted in the static sitemap — a separate variable
+// from SITE_URL, which config.js uses as the User-Agent origin for open-data
+// calls. Both default to the production origin https://kalinova.in.
 const ORIGIN = (process.env.SITE_ORIGIN || "https://kalinova.in").replace(/\/+$/, "");
 const OUT = path.join(__dirname, "..", "frontend", "sitemap.xml");
 

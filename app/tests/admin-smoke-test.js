@@ -20,6 +20,8 @@
  * so `npm test` still works on a machine with no admin account.
  */
 
+const { assertSafeLiveTarget } = require("./test-live-guard");
+
 require("dotenv").config();
 
 const BASE_URL = (process.env.BASE_URL || "http://localhost:3007").replace(/\/+$/, "");
@@ -177,6 +179,11 @@ async function main() {
     console.log(`SKIP  ${BASE_URL} is not serving a healthy application (is it running? is PostgreSQL up?)`);
     return;
   }
+
+  // Only now, with a live target confirmed, is the target verified as a
+  // test-only environment (loopback, explicit operator confirmation, and a
+  // validated TEST_DATABASE_URL). Refusals happen before any write.
+  assertSafeLiveTarget();
 
   /* ==================================================================== */
   /* 1. Anonymous access                                                  */

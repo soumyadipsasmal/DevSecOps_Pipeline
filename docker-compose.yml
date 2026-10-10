@@ -71,11 +71,49 @@ services:
       # the defaults in app/config.js (engine on, 5 related-story suggestions).
       ENABLE_SEO_ENGINE: ${ENABLE_SEO_ENGINE:-}
       SEO_INTERNAL_LINK_LIMIT: ${SEO_INTERNAL_LINK_LIMIT:-}
+      # --- Process / reverse proxy ---------------------------------------------
+      # NODE_ENV=production turns on the app's production safety gates: a strong
+      # ADMIN_SESSION_SECRET becomes required, admin cookies default to Secure,
+      # and DATABASE_URL is required (the non-TLS DB_* fallback is dev-only).
+      # Unset becomes "development" here so the container never boots with an
+      # empty NODE_ENV; deploy with NODE_ENV=production and a real DATABASE_URL.
+      # ADMIN_COOKIE_SECURE forces the Secure flag explicitly when the site is
+      # behind HTTPS but NODE_ENV is unset. TRUST_PROXY is only for a trusted
+      # reverse proxy in front of the app (login rate limiting reads the client
+      # IP). Empty strings select the app defaults.
+      NODE_ENV: ${NODE_ENV:-development}
+      ADMIN_COOKIE_SECURE: ${ADMIN_COOKIE_SECURE:-}
+      TRUST_PROXY: ${TRUST_PROXY:-}
+      # --- Monetization / analytics ---------------------------------------------
+      # ANALYTICS_SALT HMACs client addresses in the click/event logs; the
+      # newsletter settings configure the sender a future provider would use.
+      # GA4 stays OFF unless ENABLE_ANALYTICS and a valid GA_MEASUREMENT_ID are
+      # both set, and even then it waits for advertising consent. Empty strings
+      # keep today's behaviour: no hashing, no analytics.
+      ANALYTICS_SALT: ${ANALYTICS_SALT:-}
+      NEWSLETTER_PROVIDER: ${NEWSLETTER_PROVIDER:-}
+      NEWSLETTER_FROM_EMAIL: ${NEWSLETTER_FROM_EMAIL:-}
+      ENABLE_ANALYTICS: ${ENABLE_ANALYTICS:-}
+      GA_MEASUREMENT_ID: ${GA_MEASUREMENT_ID:-}
+      # Image seeding: the image ships scripts/topic-images.tsv at
+      # /seed-data/topic-images.tsv (see Dockerfile). app/article-images.js
+      # resolves the TSV via IMAGE_TSV first, so point it there explicitly.
+      IMAGE_TSV: ${IMAGE_TSV:-/seed-data/topic-images.tsv}
 
     # Uploaded banners live in the image filesystem by default. Mount a volume
     # here so CMS images survive a rebuild in a deployed environment.
     volumes:
       - uploads:/frontend/assets/uploads
+
+    healthcheck:
+      # /health answers 200 only when the app can run a real database query
+      # (SELECT NOW()), so this checks true readiness, not plain process
+      # liveness. Uses node's built-in fetch; node:22-alpine ships no curl.
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3007/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
     depends_on:
       db:

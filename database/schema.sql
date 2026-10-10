@@ -3,6 +3,9 @@ CREATE TABLE IF NOT EXISTS categories (
     name VARCHAR(100) NOT NULL UNIQUE,
     slug VARCHAR(100) NOT NULL UNIQUE,
     description TEXT,
+    -- Banner shown at the top of the category landing page (/category/<slug>)
+    -- and reused as the category's social card image.
+    image TEXT,
     display_order INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

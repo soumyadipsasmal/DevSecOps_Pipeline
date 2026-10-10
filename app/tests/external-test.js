@@ -31,6 +31,8 @@
  * Run with:  node tests/external-test.js
  */
 
+require("./test-db-guard");
+
 const assert = require("assert");
 const http = require("http");
 const fs = require("fs");

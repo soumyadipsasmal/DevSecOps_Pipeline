@@ -19,6 +19,9 @@
  *   ADMIN_UPLOAD_MAX_KB  banner upload limit in KB             (default 6144)
  *   ADMIN_COOKIE_SECURE    force the Secure cookie flag        (default: true in production)
  *   TRUST_PROXY            trust X-Forwarded-* from a proxy    (default false)
+ *   DATABASE_URL           TLS connection string (required in production; the
+ *                          DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASSWORD fallback
+ *                          in app/db.js carries no encryption and is dev-only)
  *
  * Monetization
  *   ANALYTICS_SALT      random 64-char hex used to hash client addresses in the
@@ -39,7 +42,31 @@
 const crypto = require("crypto");
 
 const MINUTE_MS = 60 * 1000;
-const isProduction = process.env.NODE_ENV === "production";
+
+// NODE_ENV is validated, never defaulted to a guess. An unset or empty value
+// keeps development semantics for local work and tests; any non-empty value
+// other than exactly "production" or "development" refuses to start instead of
+// silently running development-build defaults under production-like intent.
+// Trimming means " production " is treated as production (the safe direction),
+// while "Production" / "PRODUCTION" / "prod" are refusals.
+const rawNodeEnv = String(process.env.NODE_ENV || "").trim();
+if (rawNodeEnv !== "" && rawNodeEnv !== "production" && rawNodeEnv !== "development") {
+  throw new Error(
+    `NODE_ENV must be exactly "production" or "development" when set (received ` +
+      `${JSON.stringify(process.env.NODE_ENV)}). Refusing to guess.`
+  );
+}
+const isProduction = rawNodeEnv === "production";
+
+// Production refuses the non-TLS DB_* fallback (app/db.js): every read and
+// write must go through the encrypted DATABASE_URL connection string.
+if (isProduction && !String(process.env.DATABASE_URL || "").trim()) {
+  throw new Error(
+    "DATABASE_URL must be set before starting in production. The app connects " +
+      "over TLS only through DATABASE_URL; the DB_HOST / DB_PORT / DB_NAME / " +
+      "DB_USER / DB_PASSWORD fallback carries no encryption and is dev-only."
+  );
+}
 
 function readBoolean(name, fallback) {
   const raw = String(process.env[name] || "").trim().toLowerCase();
@@ -229,7 +256,7 @@ const contactEmail = readContactEmail();
 
 const config = Object.freeze({
   isProduction,
-  nodeEnv: process.env.NODE_ENV || "development",
+  nodeEnv: rawNodeEnv || "development",
   port: process.env.PORT || 3007,
 
   // --- Open-data integrations (Wikidata / Wikimedia Commons / OSM / RSS) ---

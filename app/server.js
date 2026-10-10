@@ -222,7 +222,7 @@ app.post("/api/articles", security.requireAdminSession, async (req, res, next) =
 app.get("/api/categories", async (req, res) => {
     try {
         const result = await pool.query(
-            "SELECT id, name, slug FROM categories ORDER BY display_order ASC, name ASC"
+            "SELECT id, name, slug, image FROM categories ORDER BY display_order ASC, name ASC"
         );
         res.json({ categories: result.rows });
     } catch (error) {
@@ -546,13 +546,13 @@ app.get("/api/ads", async (req, res) => {
 // ===============================
 // SITEMAP
 // ===============================
-// /sitemap.xml is a static file: frontend/sitemap.xml. It is served by the
-// express.static middleware at the top of this file, which runs before any
-// route below, so no handler is needed here. Cloudflare Pages serves the same
-// file straight from the frontend directory.
+// /sitemap.xml, /sitemap-<child>.xml and /robots.txt are generated dynamically
+// by the SEO router mounted at the top of this file (before express.static), so
+// the dynamic routes win over any static file. See app/seo-master-routes.js.
 //
-// Regenerate it after publishing with:  node scripts/generate-sitemap.js
-// That script owns the URL list, so this file and the static XML cannot drift.
+// frontend/sitemap.xml is the generated static copy that static hosting relies
+// on; regenerate it after publishing with:  node scripts/generate-sitemap.js
+// Docs: README (Public site -> SEO and ops).
 
 // ===============================
 // PUBLIC CONTENT PAGES

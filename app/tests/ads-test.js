@@ -14,6 +14,8 @@
  * that has an administrator's real configuration in it.
  */
 
+require("./test-db-guard");
+
 const assert = require("assert");
 
 require("dotenv").config();
