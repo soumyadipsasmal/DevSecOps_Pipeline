@@ -352,6 +352,10 @@ input:focus-visible,
 .topic-nav {
   flex: 1;
   min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  position: relative;
 }
 
 /* About Us sits in the header row, outside the scrolling topic list, so it
@@ -373,6 +377,8 @@ input:focus-visible,
   align-items: center;
   overflow-x: auto;
   scrollbar-width: none;
+  flex: 1;
+  min-width: 0;
 }
 .topic-nav ul::-webkit-scrollbar { display: none; }
 
@@ -408,61 +414,6 @@ input:focus-visible,
 .feed-section + .feed-section { margin-top: 56px; }
 
 /* ==========================================================================
-   Topic switcher (topic page)
-   ==========================================================================
-   Replaces the old "← All stories" back link. The chips themselves are
-   .topic-chip, shared with the header strip, so a topic looks the same in both
-   places; only the container differs. The list wraps rather than scrolls, since
-   a topic page has vertical room and a hidden chip is one a reader never finds.
-
-   No fixed height and no reserved space: the row is laid out before the chips
-   are painted, so it cannot shift the article grid below it.
-   ------------------------------------------------------------------------ */
-.topic-switcher {
-  margin: 24px 0 32px;
-}
-
-.topic-switcher-heading {
-  margin: 0 0 10px;
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--body-text-light-muted);
-}
-
-.topic-switcher ul {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-/* The header strip sits on the light chrome, so .topic-chip's default colour is a
-   dark grey. A topic page is on the dark body background, so the resting colour
-   is overridden here too — otherwise the chip label would be dark grey on dark
-   blue. */
-.topic-switcher .topic-chip {
-  color: var(--body-text-light-muted);
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.12);
-}
-
-.topic-switcher .topic-chip:hover {
-  background: rgba(255, 255, 255, 0.09);
-  color: var(--body-text-light);
-}
-
-.topic-switcher .topic-chip.is-active {
-  color: var(--body-text-light);
-  background: rgba(255, 255, 255, 0.14);
-  border-color: var(--accent-light);
-}
-
-/* ==========================================================================
    Category page header (frontend/category.html)
    ========================================================================== */
 .category-page-header { margin-bottom: 40px; }
@@ -475,6 +426,28 @@ input:focus-visible,
 
 @media (max-width: 720px) {
   .category-page-title { font-size: 1.5rem; }
+}
+
+/* Category banner (frontend/pages.js renderCategory). The per-category image
+   from categories.image, shown full width above the page header. object-fit
+   crops rather than stretches, so a source photo of any ratio fills the frame
+   cleanly. */
+.category-banner {
+  margin: 0 0 28px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  aspect-ratio: 1200 / 630;
+  background: rgba(255, 255, 255, 0.04);
+}
+.category-banner img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+@media (max-width: 720px) {
+  .category-banner { aspect-ratio: 16 / 9; margin-bottom: 20px; }
 }
 
 .feed-heading {
@@ -1053,7 +1026,8 @@ input:focus-visible,
      `order: -1` on .sidebar -- it pushed Trending above the featured
      stories on phones and tablets. */
   .side-card { display: none; }
-  .side-card:first-child { display: block; }
+  .side-card:first-child,
+  .side-card-trending { display: block; }
   .featured-grid { grid-template-columns: 1fr; }
   .footer-inner { grid-template-columns: 1fr 1fr; }
   .footer-brand { grid-column: 1 / -1; }
@@ -1088,9 +1062,10 @@ input:focus-visible,
   /* Topics stay visible on narrow screens. The header row wraps, so the chips
      occupy their own full-width row directly under the hamburger. The padding
      lives on the <ul> (the scroll box) rather than on .topic-nav, so the edge
-     fades line up with the scroll edges instead of the inset content. */
-  .topic-nav { display: block; order: 1; flex: 0 0 100%; width: 100%; position: relative; }
-  .topic-nav ul { padding: 8px 16px 10px; }
+     fades line up with the scroll edges instead of the inset content. Every
+     chip scrolls sideways in the same style. */
+  .topic-nav { display: flex; align-items: center; order: 1; flex: 0 0 100%; width: 100%; position: relative; }
+  .topic-nav ul { padding: 8px 8px 10px 16px; }
   .topic-chip { padding: 5px 12px; font-size: 0.72rem; }
 
   /* Edge fade hints. Each side only fades when there is more content that way;
@@ -1117,17 +1092,23 @@ input:focus-visible,
 
   .layout { padding: 28px 16px 56px; }
   .page-container { padding: 28px 16px 56px; }
+  .article-detail { padding: 28px 16px 56px; }
 
-  /* Phones: the sidebar is removed entirely.
-     The blocks above (Trending, Stay In Touch, Subscribe to Updates, the promo
-     banner) and the sidebar ad slots all live in .sidebar. At 980px and below
-     they are laid out full width under the feed, which on a phone put them
-     roughly 22,000px down the page, so a reader scrolled the entire archive
-     before reaching the subscribe form. Everything they hold is still reachable
-     on a phone: the social links are in the header drawer and the rest is in
-     the footer. Scoped to .sidebar rather than to .side-card so a future block
-     added to it is hidden here too. */
-  .sidebar { display: none; }
+  /* Phones: keep the genuinely useful part of the sidebar -- the "Trending on
+     KaliNova" list -- and drop the rest. The social grid, newsletter card,
+     promo banner and footnote are already reachable on a phone (the social
+     links are in the header drawer; the rest is in the footer), so re-showing
+     them here would only duplicate content and lengthen the page. The desktop
+     sidebar is never shown whole. `.side-card-trending` is an explicit hook so
+     the list still appears when a configured sidebar ad becomes the first
+     child and the `:first-child` shortcut no longer matches it. */
+  .sidebar { display: block; padding-top: 0; }
+  .side-card { display: none; }
+  .side-card-trending { display: block; }
+  .side-social,
+  .side-newsletter,
+  .side-promo,
+  .side-footnote { display: none; }
 
   .header-inner { padding: 0 16px; }
   /* Two rows on mobile: logo + hamburger on row one, topic strip on row two.
@@ -1142,11 +1123,12 @@ input:focus-visible,
   .feed-more .btn { width: 100%; }
 
 .footer-inner { grid-template-columns: 1fr 1fr; gap: 22px 16px; padding: 32px 16px 20px; }
-        /* Brand spans the full width; Topics then sits left and Company right
-           on one row instead of both stacking. Contact goes full width below
-           them so the long email addresses do not wrap mid-address. */
+        /* Brand spans the full width; Explore then sits left and Discover right
+           on one row instead of both stacking. About Kalinova and Contact share
+           the next row side by side; the contact emails are allowed to wrap so
+           the second column does not overflow. */
         .footer-brand { grid-column: 1 / -1; }
-        .footer-col[aria-label="Contact"] { grid-column: 1 / -1; }
+        .footer-col[aria-label="Contact"] .footer-links a { overflow-wrap: anywhere; }
         /* Keep the footer left-aligned and compact once the columns stack. */
         .footer-heading { margin-bottom: 10px; }
         .footer-links { gap: 8px; }
@@ -2183,8 +2165,11 @@ body.gallery-open { overflow: hidden; }
 
 @media (max-width: 720px) {
   .stories-grid { grid-template-columns: 1fr; }
-  .news-card { grid-template-columns: 1fr; }
-  .news-card-media { display: none; }
+  /* The card stacks, so the thumbnail sits full-width above the text instead of
+     being dropped. aspect-ratio + object-fit: cover (base rules) keep the
+     existing image cropped, never stretched or overflowing. */
+  .news-card { grid-template-columns: 1fr; gap: 0; }
+  .news-card-media { display: block; aspect-ratio: 16/9; }
   .news-card-body { padding: 16px; }
   .dashboard-stats { grid-template-columns: repeat(2, 1fr); }
   .dashboard-actions-grid { grid-template-columns: 1fr; }

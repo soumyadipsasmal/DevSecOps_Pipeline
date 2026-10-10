@@ -19,6 +19,15 @@
   /* ------------------------------------------------------------------ */
   /* Topic nav (rendered from GET /api/categories)                       */
   /* ------------------------------------------------------------------ */
+
+  // The topics shown in the footer's "Discover" column (rendered statically in
+  // index.html). They are filtered out of the dynamic "Explore" list so a topic
+  // is never listed twice in the footer.
+  const DISCOVER_SLUGS = new Set([
+    "food-recipes", "sports", "education",
+    "digital-technology", "cars-bikes", "history-facts"
+  ]);
+
   async function renderTopicNav() {
     const list = $("#topic-list");
     if (!list) return;
@@ -43,7 +52,7 @@
       const footerList = $("#footer-topic-list");
       if (footerList) {
         footerList.querySelectorAll("li:not(:first-child)").forEach(li => li.remove());
-        categories.forEach(c => {
+        categories.filter(c => !DISCOVER_SLUGS.has(c.slug)).forEach(c => {
           const li = document.createElement("li");
           const a = document.createElement("a");
           a.href = `/category/${c.slug}`;
@@ -78,18 +87,18 @@
     // still highlights now that navigation uses clean paths.
     const current = Router.getCurrentPath().split("?")[0].replace(/\/+$/, "") || "/";
 
-    const list = $("#topic-list");
-    if (list) {
-      $$(".topic-chip", list).forEach(chip => {
-        const href = chip.getAttribute("href").split("?")[0].replace(/\/+$/, "") || "/";
-        chip.classList.toggle("is-active", href === current);
-        if (href === current) {
-          chip.setAttribute("aria-current", "page");
-        } else {
-          chip.removeAttribute("aria-current");
-        }
-      });
-    }
+    // The visible strip chips mark the current topic, so the active state is
+    // unambiguous wherever the reader found the link.
+    const links = $$("#topic-list .topic-chip");
+    links.forEach(link => {
+      const href = (link.getAttribute("href") || "").split("?")[0].replace(/\/+$/, "") || "/";
+      link.classList.toggle("is-active", href === current);
+      if (href === current) {
+        link.setAttribute("aria-current", "page");
+      } else {
+        link.removeAttribute("aria-current");
+      }
+    });
   }
 
   /* ------------------------------------------------------------------ */

@@ -86,9 +86,10 @@
     </button>
   </div>
 
-  <!-- TOPIC NAV: "For You" links back to the homepage; every other chip is
-       rendered by script.js from GET /api/categories and navigates to
-       /category/<slug>. -->
+  <!-- TOPIC NAV: "For You" links back to the homepage. script.js renders every
+       category as a chip from GET /api/categories, so a topic added in the
+       admin appears here with no frontend change. All chips share the same
+       style and the row scrolls sideways when there are many topics. -->
   <nav class="topic-nav" aria-label="Topics">
     <ul id="topic-list">
       <li><a class="topic-chip" href="/">For You</a></li>

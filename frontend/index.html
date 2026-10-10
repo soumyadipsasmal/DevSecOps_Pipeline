@@ -115,9 +115,11 @@
       </a>
     </div>
 
-    <!-- TOPIC NAV: "For You" links back to the homepage; every other chip is
-         rendered by script.js from GET /api/categories and navigates to
-         /category/<slug>. -->
+    <!-- TOPIC NAV: "For You" links back to the homepage. script.js renders every
+         category as a chip from GET /api/categories, so a topic added in the
+         admin appears here with no frontend change. All chips share the same
+         style and the row scrolls sideways when there are many topics; every
+         chip navigates to /category/<slug>. -->
     <nav class="topic-nav" aria-label="Topics">
       <ul id="topic-list">
         <li><a class="topic-chip" href="/">For You</a></li>
@@ -163,14 +165,26 @@
     </div>
 
     <nav class="footer-col" aria-label="Explore">
-      <h3 class="footer-heading">Topics</h3>
+      <h3 class="footer-heading">Explore</h3>
       <ul class="footer-links" id="footer-topic-list">
         <li><a href="/">For You</a></li>
       </ul>
     </nav>
 
-    <nav class="footer-col" aria-label="Company">
-      <h3 class="footer-heading">Company</h3>
+    <nav class="footer-col" aria-label="Discover">
+      <h3 class="footer-heading">Discover</h3>
+      <ul class="footer-links">
+        <li><a href="/category/food-recipes">Food &amp; Recipes</a></li>
+        <li><a href="/category/sports">Sports</a></li>
+        <li><a href="/category/education">Education</a></li>
+        <li><a href="/category/digital-technology">Digital &amp; Technology</a></li>
+        <li><a href="/category/cars-bikes">Cars &amp; Bikes</a></li>
+        <li><a href="/category/history-facts">History &amp; Facts</a></li>
+      </ul>
+    </nav>
+
+    <nav class="footer-col" aria-label="About Kalinova">
+      <h3 class="footer-heading">About Kalinova</h3>
       <ul class="footer-links">
         <li><a href="/about">About Us</a></li>
         <li><a href="/services">Services</a></li>
