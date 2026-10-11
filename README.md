@@ -105,11 +105,12 @@ npm start                     # http://localhost:3007
 | `npm run create-admin` | Create or repair an administrator account |
 | `npm run seed:images` | Match article photos to article bodies |
 | `npm run sitemap` | Regenerate `frontend/sitemap.xml` |
-| `npm test` | The whole test battery (15 suites) |
+| `npm test` | The whole test battery (16 suites) |
 | `npm run test:seo` | SEO smoke test |
 | `npm run test:seo-engine` | SEO engine: determinism, report contract, redirects, wiring, schema |
 | `npm run test:admin` | Offline admin authentication tests (no database needed) |
 | `npm run test:cms` | Article CMS: sanitiser, validation, uploads, views |
+| `npm run test:publish` | Local publishing client: payload, category resolution, similarity |
 | `npm run test:admin:ads` | Ads admin screens, settings, CSP and packaging rules |
 | `npm run test:ads` | Public ad manifest, consent and legal-page checks |
 | `npm run test:admin:live` | End-to-end admin HTTP checks against a running server |
@@ -265,7 +266,7 @@ ever needs `npm run migrate`.
 
 ## Testing
 
-`npm test` runs fifteen independent suites (the total check count is not a
+`npm test` runs sixteen independent suites (the total check count is not a
 fixed constant — a few suites only run their full check count online) and any
 failing check exits non-zero:
 
@@ -286,11 +287,13 @@ failing check exits non-zero:
 | 13 | Monetization | `test:monetization` | reachable database (read-only) | — |
 | 14 | SEO master | `test:seo-master` | disposable test database (`TEST_DATABASE_URL`) | — |
 | 15 | Analytics | `test:analytics` | nothing | 45 |
+| 16 | Publishing client | `test:publish` | nothing | 47 |
 
-The offline suites (SEO smoke, Admin auth, Article CMS, Admin ads, Circuit
-breakers, Research workflow, Monetization, Analytics) were re-run read-only in
-the latest audit; the database/server-bound counts for SEO engine, SEO content,
-Public ads and Open-data services come from the project's own runners.
+The offline suites (SEO smoke, Admin auth, Article CMS, Publishing client,
+Admin ads, Circuit breakers, Research workflow, Monetization, Analytics) were
+re-run read-only in the latest audit; the database/server-bound counts for SEO
+engine, SEO content, Public ads and Open-data services come from the project's
+own runners.
 
 The live suite covers the sign-in page, invalid email, invalid password,
 successful sign-in, the redirect to the dashboard, dashboard access while
@@ -302,7 +305,7 @@ site and article/category endpoints still respond. Without `ADMIN_EMAIL` /
 
 ```bash
 cd app
-npm test                       # all 15 suites; the live one SKIPs without a server
+npm test                       # all 16 suites; the live one SKIPs without a server
 
 BASE_URL=http://localhost:3007 \
 ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD='your-password' \

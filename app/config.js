@@ -197,6 +197,19 @@ function readUrl(name, fallback) {
 }
 
 /**
+ * A configuration email address read from the environment. An invalid override
+ * is ignored rather than stopping the process: a typo in a monitoring variable
+ * must not take the website down.
+ */
+function readEmail(name, fallback) {
+  const raw = String(process.env[name] || "").trim();
+  if (raw === "") return fallback;
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw)) return raw;
+  console.warn(`[config] ${name} does not look like an email address. Using the default instead.`);
+  return fallback;
+}
+
+/**
  * The User-Agent contact address. Wikimedia's API guidelines require a
  * descriptive User-Agent with contact details, so this ships with the same
  * public address the site already lists in its footer. An invalid override is
@@ -204,12 +217,7 @@ function readUrl(name, fallback) {
  * must not take the website down.
  */
 function readContactEmail() {
-  const fallback = "soumyadipsasmal88@gmail.com";
-  const raw = String(process.env.CONTACT_EMAIL || "").trim();
-  if (raw === "") return fallback;
-  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw)) return raw;
-  console.warn("[config] CONTACT_EMAIL does not look like an email address. Using the default instead.");
-  return fallback;
+  return readEmail("CONTACT_EMAIL", "soumyadipsasmal88@gmail.com");
 }
 
 /**
@@ -253,6 +261,7 @@ function readGaMeasurementId() {
 
 const siteOrigin = readUrl("SITE_URL", "https://kalinova.in");
 const contactEmail = readContactEmail();
+const googleServicesEmail = readEmail("GOOGLE_SERVICES_EMAIL", contactEmail);
 
 const config = Object.freeze({
   isProduction,
@@ -344,6 +353,13 @@ const config = Object.freeze({
   // Control, so nothing leaves the browser without a deliberate choice.
   enableAnalytics: readBoolean("ENABLE_ANALYTICS", true),
   gaMeasurementId: readGaMeasurementId(),
+
+  // --- Google services (Search Console / AdSense) ---------------------------
+  // The Google account used to connect KaliNova to Google Search Console and
+  // Google AdSense. This is reference configuration only: no code connects,
+  // authenticates or grants permissions to Google — both services are connected
+  // manually with this account. Defaults to the public contact address above.
+  googleServicesEmail,
 
   // --- SEO Engine -----------------------------------------------------------
   // A deterministic, internal content-quality analyzer (docs/seo-engine.md).

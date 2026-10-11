@@ -95,6 +95,10 @@ services:
       NEWSLETTER_FROM_EMAIL: ${NEWSLETTER_FROM_EMAIL:-}
       ENABLE_ANALYTICS: ${ENABLE_ANALYTICS:-}
       GA_MEASUREMENT_ID: ${GA_MEASUREMENT_ID:-}
+      # The Google account used to connect Google Search Console and AdSense.
+      # Reference configuration only — those services are connected manually;
+      # app/config.js falls back to CONTACT_EMAIL when this is empty.
+      GOOGLE_SERVICES_EMAIL: ${GOOGLE_SERVICES_EMAIL:-}
       # Image seeding: the image ships scripts/topic-images.tsv at
       # /seed-data/topic-images.tsv (see Dockerfile). app/article-images.js
       # resolves the TSV via IMAGE_TSV first, so point it there explicitly.
