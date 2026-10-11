@@ -1100,7 +1100,7 @@
       ];
 
       renderApp(`
-        <div class="page-container">
+        <div class="page-container category-page">
           <nav class="breadcrumbs" aria-label="Breadcrumb">
             <ol class="breadcrumbs-list">
               <li class="breadcrumbs-item"><a href="/">Home</a><span class="breadcrumbs-sep" aria-hidden="true">/</span></li>

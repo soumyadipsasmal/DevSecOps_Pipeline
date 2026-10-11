@@ -416,7 +416,7 @@ input:focus-visible,
 /* ==========================================================================
    Category page header (frontend/category.html)
    ========================================================================== */
-.category-page-header { margin-bottom: 40px; }
+.category-page-header { display: none; }
 .category-page-title {
   font-family: var(--font-display);
   font-size: 2rem;
@@ -427,6 +427,11 @@ input:focus-visible,
 @media (max-width: 720px) {
   .category-page-title { font-size: 1.5rem; }
 }
+
+/* Category listing pages show the breadcrumb trail as the visible label, so
+   the whole page header (title + subtitle) is hidden. Scoped to the category
+   view in frontend/pages.js renderCategory so other pages keep their headers. */
+.category-page .page-header { display: none; }
 
 /* Category banner (frontend/pages.js renderCategory). The per-category image
    from categories.image, shown full width above the page header. object-fit
