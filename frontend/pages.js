@@ -1733,439 +1733,220 @@ id: a.id, slug: a.slug, title: a.title, excerpt: cardExcerpt(a),
   }
 
   /* ------------------------------------------------------------------ */
-  /* About Us — founder story                                           */
+  /* About Us — premium editorial page                                  */
   /* ------------------------------------------------------------------ */
 
-  // Monogram avatar. Inline SVG rather than a photo file, so the page has
-  // no external image dependency.
-  const FOUNDER_MONOGRAM = `
-    <svg class="founder-avatar-svg" viewBox="0 0 96 96" role="img" aria-label="Soumyadip Sasmal">
-      <defs>
-        <linearGradient id="founderGrad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stop-color="#7c3aed"/>
-          <stop offset="100%" stop-color="#db2777"/>
-        </linearGradient>
-      </defs>
-      <circle cx="48" cy="48" r="48" fill="url(#founderGrad)"/>
-      <text x="48" y="48" text-anchor="middle" dominant-baseline="central"
-            font-family="var(--font-display), Georgia, serif" font-size="36"
-            font-weight="600" fill="#ffffff" letter-spacing="1">SS</text>
-    </svg>`;
-
-  const ABOUT_SECTIONS = [
+  // Groups mirror the advisor's stated working areas. Listed items are the
+  // technologies actually named for the site; no proficiency scores are shown.
+  const KN_EXPERTISE_GROUPS = [
     {
-      heading: "About the Founder",
-      body: `Soumyadip Sasmal — Founder & Entrepreneur, KaliNova
-
-Every journey begins somewhere.
-
-Sometimes it begins with a dream. Sometimes with a problem that needs to be solved. And sometimes, it begins with a simple desire to create something of your own.
-
-For Soumyadip Sasmal, the journey toward entrepreneurship began with curiosity, ambition, and a strong desire to build a future on his own terms.
-
-Today, he is the founder of KaliNova, a company created from his vision of building something meaningful, independent, and capable of growing beyond a single idea.
-
-KaliNova is not simply a company for Soumyadip. It represents a journey — a journey of learning, experimentation, persistence, responsibility, and the belief that a small idea can eventually become something much larger.`
+      title: "DevOps & Cloud Technology",
+      icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 15h13a4 4 0 0 0 .6-7.96A5 5 0 0 0 8 7a4 4 0 0 0-4 4v4z"/></svg>`,
+      items: ["Linux", "Docker", "Git", "CI/CD", "Terraform", "Ansible", "Google Cloud Platform", "Prometheus", "Grafana", "Jenkins"]
     },
     {
-      heading: "The Person Behind KaliNova",
-      body: `Soumyadip's story is not one of overnight success.
-
-It is a story of gradually discovering what he wanted from life and having the courage to pursue it.
-
-Like many young people beginning their careers, he started by focusing on education and developing himself professionally. Along the way, he realized that having a career was only one part of the future he wanted.
-
-He also wanted to create.
-
-He wanted to build something that belonged to him.
-
-He wanted to make decisions, take responsibility, explore ideas, create opportunities, and eventually build something that could provide value to other people.
-
-That desire became one of the driving forces behind KaliNova.
-
-For Soumyadip, entrepreneurship is not about having a perfect plan from day one. It is about being willing to start with what you have, learn what you don't know, and improve as you move forward.`
+      title: "Web Development",
+      icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 8-4 4 4 4"/><path d="m16 8 4 4-4 4"/><path d="M14 5l-4 14"/></svg>`,
+      items: ["Shopify", "Liquid", "Node.js", "Django", "Laravel", "PostgreSQL", "REST APIs", "HTML", "CSS", "JavaScript"]
     },
     {
-      heading: "From Dream to Direction",
-      body: `There is a difference between having a dream and turning that dream into a direction.
-
-A dream is something you imagine.
-
-A direction is something you start working toward.
-
-Soumyadip chose to turn his ambition into action.
-
-Instead of waiting until everything was perfect, he began exploring ideas, understanding business, learning from experiences, and thinking about what kind of company he wanted to build.
-
-This process was not always easy.
-
-Starting something of your own comes with uncertainty.
-
-There are questions that do not always have immediate answers.
-
-Will people believe in the idea? Will customers come? Will the business grow? What happens when something goes wrong? How do you compete? How do you build trust? How do you keep going when progress is slower than expected?
-
-Entrepreneurship requires facing these questions without always knowing the answers.
-
-Soumyadip believes that this uncertainty is not something to be afraid of. It is part of the process of building something new.`
-    },
-    {
-      heading: "Why KaliNova?",
-      body: `KaliNova was created from the desire to build something with a long-term vision.
-
-The idea behind KaliNova is bigger than a single product or service.
-
-It is about creating a company that can grow, adapt, explore new opportunities, and eventually become something meaningful.
-
-The world is changing quickly. People's needs are changing. Businesses are changing. New opportunities are appearing every day.
-
-Soumyadip wants KaliNova to be capable of growing with those changes.
-
-Rather than defining the company by one narrow idea, he sees KaliNova as a foundation from which new ideas can be developed.
-
-The journey may take different directions over time, but the underlying purpose remains the same:
-
-To create value, explore opportunities, solve meaningful problems, and build something people can trust.`
-    },
-    {
-      heading: "Entrepreneurship as a Journey",
-      body: `For Soumyadip, entrepreneurship is not a title.
-
-It is a responsibility.
-
-Calling yourself a founder is easy. Building a company is not.
-
-A founder has to make decisions even when there is uncertainty. A founder has to accept responsibility when things do not go according to plan. A founder has to listen, learn, adapt, and continue moving forward.
-
-There are days when everything feels possible.
-
-There are also days when progress feels difficult.
-
-Both are part of the journey.
-
-Soumyadip believes that successful entrepreneurship is built through consistency rather than temporary motivation.
-
-A person may feel motivated today and discouraged tomorrow.
-
-But a business cannot depend only on motivation.
-
-It needs discipline. It needs patience. It needs continuous effort. It needs the ability to keep working even when results take time.
-
-This is the mindset he wants to bring to KaliNova.`
-    },
-    {
-      heading: "Learning From Every Experience",
-      body: `One of the most important lessons Soumyadip has learned is that every experience has something to teach.
-
-Success teaches you what works.
-
-Failure teaches you what needs to change.
-
-Difficult situations teach you patience.
-
-Working with people teaches you communication.
-
-Taking responsibility teaches you maturity.
-
-And starting a business teaches you that there is always more to learn.
-
-Soumyadip does not believe that a person needs to know everything before starting a company.
-
-In fact, he believes the opposite.
-
-You start with what you know. You identify what you don't know. Then you learn.
-
-You ask questions. You make mistakes. You improve.
-
-And you continue.
-
-This philosophy has become an important part of his approach to entrepreneurship.`
-    },
-    {
-      heading: "The Importance of Taking Risks",
-      body: `Every meaningful opportunity involves some level of risk.
-
-Choosing to start a company is itself a risk.
-
-There is no guaranteed path. There is no certainty that an idea will immediately succeed.
-
-But there is also a risk in never trying.
-
-Soumyadip believes that calculated risks are an important part of growth.
-
-Taking a risk does not mean acting without thinking.
-
-It means understanding the possibilities, accepting uncertainty, preparing as much as possible, and having the courage to take the next step.
-
-KaliNova is the result of taking that step.`
-    },
-    {
-      heading: "Building Something of His Own",
-      body: `One of the strongest motivations behind KaliNova is independence.
-
-Soumyadip wanted to create something where his ideas could become real.
-
-A place where he could experiment.
-
-A company where new ideas could be explored.
-
-An organization that could eventually create opportunities for other people.
-
-Building something of your own creates a different kind of responsibility.
-
-When you work for someone else, the company already has its identity, systems, customers, and direction.
-
-When you build your own company, you have to help create those things.
-
-That challenge is difficult, but it is also what makes entrepreneurship meaningful.
-
-Every decision becomes part of the company's story.
-
-Every customer relationship becomes part of its reputation.
-
-Every mistake becomes a lesson.
-
-Every achievement becomes part of the foundation for the future.`
-    },
-    {
-      heading: "The Values Behind KaliNova",
-      body: `Soumyadip believes that a company should be built around more than money.
-
-Business growth is important. Revenue is important. Sustainability is important.
-
-But a company also needs values.
-
-For KaliNova, some of the most important values are honesty, responsibility, learning, creativity, persistence, and respect.
-
-Honesty
-
-Trust takes a long time to build and can be lost quickly.
-
-Soumyadip believes that businesses should communicate honestly with their customers and partners.
-
-Promises should be realistic. Expectations should be clear. And when a problem occurs, it should be addressed rather than ignored.
-
-Responsibility
-
-When you build something, you have to take ownership of it.
-
-Soumyadip believes in accepting responsibility for both successes and mistakes.
-
-If something goes wrong, the goal should not simply be to find someone to blame.
-
-The goal should be to understand what happened and determine how it can be improved.
-
-Learning
-
-No entrepreneur knows everything.
-
-Markets change. Customers change. Business conditions change. New opportunities appear.
-
-Continuous learning is therefore essential.
-
-KaliNova is built with the idea that learning should never stop.
-
-Creativity
-
-New ideas often come from looking at familiar problems differently.
-
-Soumyadip believes in giving ideas room to grow and encouraging creative thinking.
-
-Not every idea will become a successful business.
-
-But every idea can teach you something.
-
-Persistence
-
-Building a company takes time.
-
-There will be setbacks. There will be uncertainty. There will be moments of doubt.
-
-Persistence means continuing to work while learning from those experiences.`
-    },
-    {
-      heading: "A Founder With a Long-Term Vision",
-      body: `Soumyadip does not see KaliNova as something that should be built only for today.
-
-He thinks about where the company could be years from now.
-
-The goal is to create a business that can evolve.
-
-A company that can enter new areas. A company that can develop new ideas. A company that can create employment and opportunities. A company that can build strong relationships with customers and partners.
-
-And ultimately, a company that can stand on its own identity.
-
-This long-term perspective is important because entrepreneurship is not only about the first year.
-
-It is about creating a foundation strong enough for the years that follow.`
-    },
-    {
-      heading: "More Than One Idea",
-      body: `KaliNova is intentionally open to possibilities.
-
-The company may begin with one direction, but that does not mean its future has to remain limited to it.
-
-Businesses evolve. Ideas change. Markets develop. New opportunities appear.
-
-Soumyadip wants KaliNova to have the flexibility to explore those opportunities.
-
-This does not mean chasing every trend.
-
-It means remaining open-minded while staying focused on creating genuine value.
-
-The company's future will be shaped by experience, customer needs, new opportunities, and the lessons learned along the way.`
-    },
-    {
-      heading: "Creating Opportunities for Others",
-      body: `An important part of Soumyadip's long-term vision is that KaliNova should eventually become more than a founder-led business.
-
-He wants to build something where other people can participate in the journey.
-
-As the company grows, there can be opportunities for employees, collaborators, creators, professionals, and future entrepreneurs.
-
-Creating opportunities for others is one of the ways a company can create a lasting impact.
-
-For Soumyadip, building a company is therefore not only about creating a career for himself.
-
-It is about eventually creating a platform where other people can also grow.`
-    },
-    {
-      heading: "What Success Means to Soumyadip",
-      body: `Everyone has a different definition of success.
-
-For Soumyadip, success is not simply about becoming wealthy or having a large company.
-
-Those may be outcomes of successful business growth, but they are not the only things that matter.
-
-Success means creating something that people value.
-
-It means earning the trust of customers.
-
-It means being able to create opportunities for others.
-
-It means building a team.
-
-It means overcoming challenges.
-
-It means learning from failure.
-
-And it means being proud of how the company was built.
-
-He believes that the way a company grows is just as important as how much it grows.`
-    },
-    {
-      heading: "The Reality of Building From the Beginning",
-      body: `KaliNova is being built from the ground up.
-
-That means the journey is still in its early stages.
-
-There is no illusion that everything is already established.
-
-There is still work to do. There are still ideas to test. There are still customers to reach. There are still processes to build. There are still lessons to learn.
-
-But that is what makes the journey exciting.
-
-Every company that becomes successful starts somewhere.
-
-The important thing is to begin.`
-    },
-    {
-      heading: "Looking Toward the Future",
-      body: `Soumyadip's vision for the future is ambitious, but it is also grounded in patience.
-
-He wants KaliNova to grow naturally through strong work, good relationships, useful ideas, and consistent improvement.
-
-He wants to build a company that can adapt to changing times without losing its core identity.
-
-He wants KaliNova to be recognized not only for what it creates, but also for how it treats people.
-
-Customers should feel respected.
-
-Partners should feel valued.
-
-Employees should have opportunities to grow.
-
-And everyone connected with the company should understand that they are contributing to something that is being built for the long term.`
-    },
-    {
-      heading: "The Story Is Still Being Written",
-      body: `Perhaps the most important thing about Soumyadip's entrepreneurial journey is that it is still being written.
-
-There is no final chapter yet.
-
-The company is young.
-
-The ideas will continue to evolve.
-
-The challenges will continue.
-
-The opportunities will continue.
-
-And Soumyadip intends to continue learning through all of it.
-
-The journey from having an idea to building a company is rarely straightforward.
-
-It involves uncertainty, patience, mistakes, unexpected opportunities, and countless small decisions.
-
-But every step contributes to the bigger picture.
-
-KaliNova represents that bigger picture for Soumyadip.
-
-It represents the decision to stop only imagining what could be built and start actually building it.`
-    },
-    {
-      heading: "A Message From the Founder",
-      quote: `KaliNova is more than a business idea for me. It is the beginning of something I want to build with my own vision, values, and effort. I know that building a company takes time, and I know there will be challenges along the way. I don't expect everything to happen overnight. My goal is to keep learning, keep improving, and keep moving forward. I want KaliNova to become a company that creates real value, builds trust, provides opportunities, and continues to grow with purpose. This is only the beginning, and I am excited about what we can build together.`,
-      signature: "Soumyadip Sasmal"
-    },
-    {
-      heading: "The Beginning of KaliNova",
-      body: `Every great journey has a beginning.
-
-For KaliNova, that beginning is today.
-
-It started with one person's willingness to dream beyond a traditional career.
-
-It continued with the courage to take the first step.
-
-And it will grow through hard work, learning, relationships, ideas, and the people who become part of the journey.
-
-Soumyadip's goal is not simply to say that he founded a company.
-
-His goal is to build one.
-
-Step by step. Idea by idea. Challenge by challenge. And opportunity by opportunity.
-
-KaliNova is the company he chose to build.
-
-The journey has started.
-
-The future is still being written.`
+      title: "Digital Marketing & SEO",
+      icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19h16"/><path d="M7 16v-5"/><path d="M12 16V7"/><path d="M17 16V9"/></svg>`,
+      items: ["SEO", "Technical SEO", "Website Performance Optimization", "Search Console", "SEO Auditing", "Content Optimization", "Digital Growth Strategy", "Website Analytics"]
     }
   ];
 
-  // Renders one block of the founder story. Bodies are written as plain text
-  // with blank lines between paragraphs, so they go through escapeHtml.
-  function renderAboutBlock(block) {
-    let html = `<h2>${escapeHtml(block.heading)}</h2>`;
+  // Descriptions for the six primary topics come from the brief; the remaining
+  // categories fall back to their seeded descriptions. The grid itself is
+  // data-driven from /api/categories, so the real list is always shown.
+  const KN_CATEGORY_DESCRIPTIONS = {
+    "bollywood": "Discover stories from Hindi cinema and entertainment.",
+    "tollywood": "Explore Bengali cinema and regional entertainment.",
+    "fashion": "Discover style, trends, and creative expression.",
+    "latest-news": "Explore updates and stories on current developments.",
+    "wildlife": "Learn about wildlife, biodiversity, and nature.",
+    "travel": "Explore destinations, experiences, and travel inspiration.",
+    "lifestyle": "Lifestyle, wellness, food, and everyday living.",
+    "kids": "Stories, activities, and family-friendly content.",
+    "food-recipes": "Recipes, regional food, and cooking tips.",
+    "sports": "Sports news, match updates, and features.",
+    "education": "Learning resources, guidance, and education news.",
+    "digital-technology": "Technology news, tools, gadgets, and trends.",
+    "cars-bikes": "Automotive news, launches, reviews, and features.",
+    "history-facts": "History stories, facts, and heritage features."
+  };
 
-    if (block.quote) {
-      html += `<blockquote class="about-quote"><p>${escapeHtml(block.quote)}</p>`;
-      if (block.signature) {
-        html += `<cite class="about-signature">${escapeHtml(block.signature)}<br>Founder &amp; Entrepreneur, KaliNova</cite>`;
-      }
-      html += `</blockquote>`;
+  // Used only if /api/categories cannot be reached, so the section still shows
+  // something meaningful offline. Order matches the site's primary topics.
+  const KN_FALLBACK_CATEGORIES = [
+    { name: "Bollywood", slug: "bollywood" },
+    { name: "Tollywood", slug: "tollywood" },
+    { name: "Fashion", slug: "fashion" },
+    { name: "Latest News", slug: "latest-news" },
+    { name: "Wildlife", slug: "wildlife" },
+    { name: "Travel", slug: "travel" }
+  ];
+
+  // Decorative world-network graphic. Inline SVG keeps it lightweight and
+  // dependency-free; it is purely presentational.
+  const KN_GLOBE_SVG = `
+    <svg class="kn-globe" viewBox="0 0 520 520" role="presentation" aria-hidden="true" focusable="false">
+      <defs>
+        <radialGradient id="knGlobeGlow" cx="50%" cy="45%" r="60%">
+          <stop offset="0%" stop-color="#299DFF" stop-opacity="0.35"/>
+          <stop offset="100%" stop-color="#299DFF" stop-opacity="0"/>
+        </radialGradient>
+        <linearGradient id="knGlobeArc" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#299DFF"/>
+          <stop offset="100%" stop-color="#1677FF"/>
+        </linearGradient>
+      </defs>
+      <circle cx="260" cy="260" r="230" fill="url(#knGlobeGlow)"/>
+      <g fill="none" stroke="#299DFF" stroke-opacity="0.35" stroke-width="1">
+        <circle cx="260" cy="260" r="200"/>
+        <ellipse cx="260" cy="260" rx="200" ry="70"/>
+        <ellipse cx="260" cy="260" rx="200" ry="140"/>
+        <ellipse cx="260" cy="260" rx="70" ry="200"/>
+        <ellipse cx="260" cy="260" rx="140" ry="200"/>
+      </g>
+      <g fill="none" stroke="url(#knGlobeArc)" stroke-width="1.5" stroke-opacity="0.85">
+        <path d="M150 200 Q250 120 350 170"/>
+        <path d="M350 170 Q340 260 300 330"/>
+        <path d="M300 330 Q240 350 190 350"/>
+        <path d="M190 350 Q150 280 150 200"/>
+      </g>
+      <g fill="#299DFF">
+        <circle cx="150" cy="200" r="4"/>
+        <circle cx="350" cy="170" r="4"/>
+        <circle cx="300" cy="330" r="4"/>
+        <circle cx="190" cy="350" r="4"/>
+      </g>
+    </svg>`;
+
+  function knStatCard(value, label, numeric) {
+    if (numeric) {
+      const n = Number(value) || 0;
+      return `<div class="kn-stat"><span class="kn-stat-value" data-kn-count="${n}">0</span><span class="kn-stat-label">${escapeHtml(label)}</span></div>`;
+    }
+    return `<div class="kn-stat kn-stat--text"><span class="kn-stat-value kn-stat-value--phrase">${escapeHtml(String(value))}</span><span class="kn-stat-label">${escapeHtml(label)}</span></div>`;
+  }
+
+  function knStatsHtml(stats) {
+    return [
+      knStatCard(stats.categories, "Content Categories", true),
+      knStatCard(stats.published_articles, "Stories Published", true),
+      knStatCard("Film \u00b7 Fashion \u00b7 News", "Topics Covered", false),
+      knStatCard("Built for Discovery", "Digital Reach", false)
+    ].join("");
+  }
+
+  function knStatsHtmlFallback() {
+    return [
+      knStatCard("Editorial Categories", "Content Categories", false),
+      knStatCard("A Growing Library", "Stories Published", false),
+      knStatCard("Film \u00b7 Fashion \u00b7 News", "Topics Covered", false),
+      knStatCard("Built for Discovery", "Digital Reach", false)
+    ].join("");
+  }
+
+  function knCoverCard(cat) {
+    const desc = KN_CATEGORY_DESCRIPTIONS[cat.slug] || "Explore stories in this topic.";
+    return `<a class="kn-cover-card" href="/category/${encodeURIComponent(cat.slug)}">
+      <span class="kn-cover-name">${escapeHtml(cat.name)}</span>
+      <span class="kn-cover-desc">${escapeHtml(desc)}</span>
+      <span class="kn-cover-arrow" aria-hidden="true">&rarr;</span>
+    </a>`;
+  }
+
+  function knExpertiseGroup(group) {
+    return `<article class="kn-skill-group">
+      <div class="kn-skill-head">
+        <span class="kn-skill-icon">${group.icon}</span>
+        <h3 class="kn-skill-title">${escapeHtml(group.title)}</h3>
+      </div>
+      <ul class="kn-skill-list">
+        ${group.items.map(item => `<li class="kn-skill-chip">${escapeHtml(item)}</li>`).join("")}
+      </ul>
+    </article>`;
+  }
+
+  // Counts up each numeric statistic once it scrolls into view. Falls back to
+  // the final value immediately when reduced motion is requested or when
+  // IntersectionObserver is unavailable.
+  function runAboutCounters(root) {
+    const nodes = $$("[data-kn-count]", root);
+    if (!nodes.length) return;
+
+    const setFinal = (el) => {
+      const n = Number(el.getAttribute("data-kn-count")) || 0;
+      el.textContent = n.toLocaleString();
+    };
+
+    const prefersReduce = typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (prefersReduce || !("IntersectionObserver" in window)) {
+      nodes.forEach(setFinal);
+      return;
     }
 
-    if (block.body) {
-      html += String(block.body)
-        .split(/\n{2,}/)
-        .map(para => `<p>${escapeHtml(para.trim()).replace(/\n/g, "<br>")}</p>`)
-        .join("");
-    }
+    const animate = (el) => {
+      const target = Number(el.getAttribute("data-kn-count")) || 0;
+      if (target <= 0) { setFinal(el); return; }
+      const start = performance.now();
+      const duration = 1100;
+      const tick = (now) => {
+        const progress = Math.min((now - start) / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        el.textContent = Math.round(target * eased).toLocaleString();
+        if (progress < 1) requestAnimationFrame(tick);
+        else setFinal(el);
+      };
+      requestAnimationFrame(tick);
+    };
 
-    const slug = block.heading.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-    return `<section class="about-block" id="about-block-${slug}">${html}</section>`;
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          observer.unobserve(entry.target);
+          animate(entry.target);
+        }
+      });
+    }, { threshold: 0.4 });
+
+    nodes.forEach((el) => observer.observe(el));
+  }
+
+  // Best-effort enhancement: the page renders immediately with safe fallbacks,
+  // then swaps in real counts and the full category list when the API answers.
+  function enhanceAbout() {
+    const root = $("#app");
+    if (!root) return;
+
+    const getJson = (url) =>
+      fetch(url, { headers: { Accept: "application/json" } })
+        .then((res) => (res.ok ? res.json() : null))
+        .catch(() => null);
+
+    Promise.all([getJson("/api/stats"), getJson("/api/categories")])
+      .then(([stats, catData]) => {
+        if (!root.querySelector(".kn-about")) return;
+
+        if (stats && Number.isFinite(stats.categories) && Number.isFinite(stats.published_articles)) {
+          const grid = root.querySelector("[data-kn-stats]");
+          if (grid) {
+            grid.innerHTML = knStatsHtml(stats);
+            runAboutCounters(grid);
+          }
+        }
+
+        const categories = catData && Array.isArray(catData.categories) ? catData.categories : null;
+        const cover = root.querySelector("[data-kn-cover]");
+        if (categories && categories.length && cover) {
+          cover.innerHTML = categories.map(knCoverCard).join("");
+        }
+      })
+      .catch(() => {});
   }
 
   function renderAbout() {
@@ -2192,38 +1973,130 @@ The future is still being written.`
     });
 
     renderApp(`
-      <div class="about-page">
-        <header class="about-hero">
-          <div class="about-hero-avatar">${FOUNDER_MONOGRAM}</div>
-          <div class="about-hero-text">
-            <span class="page-title-label">Our Story</span>
-            <h1 class="about-hero-title">About Us</h1>
-            <p class="about-hero-role">Soumyadip Sasmal — Founder &amp; Entrepreneur, KaliNova</p>
-            <p class="about-hero-tagline">Every journey begins somewhere.</p>
-            <a href="/stories" class="btn btn-primary">Read Our Stories</a>
+      <div class="kn-about">
+        <section class="kn-hero" aria-labelledby="kn-hero-title">
+          <span class="kn-hero-grid" aria-hidden="true"></span>
+          <div class="kn-hero-inner">
+            <div class="kn-hero-text">
+              <p class="kn-eyebrow">About KaliNova</p>
+              <h1 class="kn-hero-title" id="kn-hero-title">Discover the World with KaliNova</h1>
+              <p class="kn-hero-lead">From entertainment and fashion to news, wildlife, and travel, KaliNova brings together stories and perspectives that help readers explore the world around them.</p>
+              <p class="kn-hero-tagline">Inform. Inspire. Empower.</p>
+              <div class="kn-hero-actions">
+                <a class="kn-btn kn-btn-primary" href="/stories">Explore Our Stories</a>
+                <a class="kn-btn kn-btn-ghost" href="#kn-advisor">Meet Our Advisor</a>
+              </div>
+            </div>
+            <div class="kn-hero-visual">${KN_GLOBE_SVG}</div>
           </div>
-        </header>
+        </section>
 
-        <nav class="about-toc" aria-label="On this page">
-          ${ABOUT_SECTIONS.map(s => `<a href="#about-block-${escapeHtml(s.heading.toLowerCase().replace(/[^a-z0-9]+/g, "-"))}">${escapeHtml(s.heading)}</a>`).join("")}
-        </nav>
+        <section class="kn-section kn-advisor" id="kn-advisor" aria-labelledby="kn-advisor-title">
+          <div class="kn-wrap kn-advisor-grid">
+            <figure class="kn-advisor-photo">
+              <img src="/assets/advisor-spotlight.png" alt="Soumyadip Sasmal, advisor to KaliNova" width="1536" height="1024" loading="lazy" decoding="async">
+            </figure>
+            <div class="kn-advisor-text">
+              <p class="kn-eyebrow kn-eyebrow-dark">Our Advisor</p>
+              <h2 class="kn-section-title" id="kn-advisor-title">Soumyadip Sasmal</h2>
+              <p class="kn-advisor-role">Technology &amp; Digital Marketing Specialist</p>
+              <span class="kn-advisor-badge">Advisor, KaliNova</span>
+              <p>Soumyadip Sasmal works where technology and digital growth meet. He advises KaliNova on how the platform is built, how it performs, and how it reaches readers.</p>
+              <p>On the technology side, his experience spans web development, cloud infrastructure, and DevOps practices that keep products reliable and scalable. On the digital side, he focuses on search visibility, technical SEO, web performance, and data-informed marketing.</p>
+              <p>As an advisor to KaliNova, he contributes guidance on how content is structured, how the site performs for readers, and how an independent publication can grow organically over time.</p>
+              <p>His approach is straightforward: build things properly, measure what matters, and keep improving.</p>
+            </div>
+          </div>
+        </section>
 
-        <div class="about-body">
-          ${ABOUT_SECTIONS.map(renderAboutBlock).join("")}
-        </div>
+        <section class="kn-section kn-stats" aria-labelledby="kn-stats-title">
+          <div class="kn-wrap">
+            <h2 class="kn-visually-hidden" id="kn-stats-title">KaliNova at a glance</h2>
+            <div class="kn-stats-grid" data-kn-stats>
+              ${knStatsHtmlFallback()}
+            </div>
+          </div>
+        </section>
+
+        <section class="kn-section kn-expertise" aria-labelledby="kn-expertise-title">
+          <div class="kn-wrap">
+            <header class="kn-section-head">
+              <p class="kn-eyebrow kn-eyebrow-dark">Expertise</p>
+              <h2 class="kn-section-title" id="kn-expertise-title">Technology Meets Digital Growth</h2>
+              <p class="kn-section-lead">Building better digital experiences through reliable technology, search visibility, and data-informed marketing.</p>
+            </header>
+            <div class="kn-skills-grid">
+              ${KN_EXPERTISE_GROUPS.map(knExpertiseGroup).join("")}
+            </div>
+          </div>
+        </section>
+
+        <section class="kn-section kn-story" aria-labelledby="kn-story-title">
+          <div class="kn-wrap">
+            <div class="kn-story-inner">
+              <p class="kn-eyebrow kn-eyebrow-dark">Our Story</p>
+              <h2 class="kn-section-title" id="kn-story-title">Why KaliNova Exists</h2>
+              <p>KaliNova began with a simple idea: that good stories deserve a place of their own. Too much of what we read online is rushed or recycled. We wanted to build a publication that slows down, covers the topics people genuinely care about, and treats readers like they have time to think.</p>
+              <p>The name reflects that ambition. KaliNova is imagined as a creator of new beginnings &mdash; a platform that keeps discovering fresh voices, fresh places, and fresh perspectives across cinema, fashion, current affairs, wildlife, and travel.</p>
+              <p>It started as a personal project and has grown into an independent publishing platform. There is no large newsroom behind it, only a commitment to publishing carefully, improving constantly, and staying honest about what we know and what we do not.</p>
+              <p>Every story we publish is part of that same effort: to inform, to inspire, and to help readers see a little more of the world.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="kn-section kn-mvv" aria-labelledby="kn-mvv-title">
+          <div class="kn-wrap">
+            <header class="kn-section-head">
+              <p class="kn-eyebrow kn-eyebrow-dark">What Drives Us</p>
+              <h2 class="kn-section-title" id="kn-mvv-title">Mission, Vision &amp; Values</h2>
+            </header>
+            <div class="kn-mvv-grid">
+              <article class="kn-mvv-card">
+                <span class="kn-mvv-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.2"/></svg></span>
+                <h3 class="kn-mvv-title">Our Mission</h3>
+                <p>To inform, inspire, and empower readers with stories and perspectives from around the world &mdash; published with care and built to be useful.</p>
+              </article>
+              <article class="kn-mvv-card">
+                <span class="kn-mvv-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/></svg></span>
+                <h3 class="kn-mvv-title">Our Vision</h3>
+                <p>To become a trusted, independent destination for culture, wildlife, travel, and technology stories &mdash; a place readers return to because the work is worth their time.</p>
+              </article>
+              <article class="kn-mvv-card">
+                <span class="kn-mvv-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4-3 7.5-7 9-4-1.5-7-5-7-9V6l7-3z"/></svg></span>
+                <h3 class="kn-mvv-title">Our Values</h3>
+                <p>Curiosity, integrity, and craft. We value accurate work, clear writing, and the discipline to keep improving rather than chase shortcuts.</p>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section class="kn-section kn-cover" aria-labelledby="kn-cover-title">
+          <div class="kn-wrap">
+            <header class="kn-section-head">
+              <p class="kn-eyebrow kn-eyebrow-dark">Explore</p>
+              <h2 class="kn-section-title" id="kn-cover-title">What We Cover</h2>
+              <p class="kn-section-lead">Pick a topic and dive in.</p>
+            </header>
+            <div class="kn-cover-grid" data-kn-cover>
+              ${KN_FALLBACK_CATEGORIES.map(knCoverCard).join("")}
+            </div>
+          </div>
+        </section>
+
+        <section class="kn-section kn-cta" aria-labelledby="kn-cta-title">
+          <div class="kn-wrap">
+            <h2 class="kn-cta-title" id="kn-cta-title">Stories Worth Your Time</h2>
+            <p class="kn-cta-lead">Explore the latest from cinema, fashion, news, wildlife, travel, and more &mdash; or reach out and tell us what you would like to read next.</p>
+            <div class="kn-cta-actions">
+              <a class="kn-btn kn-btn-primary" href="/stories">Explore Stories</a>
+              <a class="kn-btn kn-btn-ghost" href="/contact">Contact Us</a>
+            </div>
+          </div>
+        </section>
       </div>
     `);
 
-    // The table-of-contents links are same-page anchors. Rewrite them to plain
-    // ids so the hash router does not treat them as routes.
-    $$(".about-toc a", $(".about-page")).forEach(link => {
-      link.addEventListener("click", (e) => {
-        e.preventDefault();
-        const id = link.getAttribute("href").slice(1);
-        const target = document.getElementById(id);
-        if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
-    });
+    enhanceAbout();
   }
 
   /* ------------------------------------------------------------------ */

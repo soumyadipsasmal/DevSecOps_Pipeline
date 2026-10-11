@@ -232,6 +232,30 @@ app.get("/api/categories", async (req, res) => {
 });
 
 // ===============================
+// GET SITE STATISTICS
+// ===============================
+// PUBLIC SURFACE: a small, cacheable summary of public inventory only
+// (published articles plus taxonomy sizes). No drafts, no admin columns, no
+// per-article data. Errors return 500 so callers can fall back to a
+// non-numeric label instead of showing an inaccurate zero.
+
+app.get("/api/stats", async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT
+                (SELECT COUNT(*)::int FROM categories) AS categories,
+                (SELECT COUNT(*)::int FROM articles WHERE status = 'published') AS published_articles,
+                (SELECT COUNT(*)::int FROM tags) AS tags
+        `);
+        res.set("Cache-Control", "public, max-age=300, stale-while-revalidate=600");
+        res.json(result.rows[0] || { categories: 0, published_articles: 0, tags: 0 });
+    } catch (error) {
+        console.error("Get stats error:", error);
+        res.status(500).json({ error: "Unable to load statistics" });
+    }
+});
+
+// ===============================
 // GET ALL ARTICLES
 // ===============================
 // PUBLIC SURFACE: published articles only. The status filter is not a query
